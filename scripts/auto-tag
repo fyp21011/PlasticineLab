@@ -1,0 +1,17 @@
+#!/bin/bash
+versionLine=$(docker image inspect liuyunhao1578/deformsim:latest | grep -i "image.version")
+major=`echo ${versionLine#*:} | sed 's/\"//g' | cut -d. -f1`
+minor=`echo ${versionLine#*:} | sed 's/\"//g' | cut -d. -f2`
+patch=`echo ${versionLine#*:} | sed 's/\"//g' | cut -d. -f3`
+echo -e "\033[34mOrigin tag ${major}.${minor}.${patch}[0m"
+let patch=patch+1
+echo -e "\033[34mNew tag ${major}.${minor}.${patch}\033[0m"
+tag="v${major}.${minor}.${patch}"
+echo
+echo -e "\033[33mExectuing\033[0m git tag ${tag}"
+git tag $tag
+
+echo -e "\033[33mExectuing\033[0m git push origin ${tag}"
+echo -e "\033[33mThis triggers AUTO-PUBLISH, confirm?\033[0m"
+read
+git push origin $tag

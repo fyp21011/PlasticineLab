@@ -1,0 +1,19 @@
+#!/bin/bash
+echo -e "\033[32mChecking for Docker image version\033[0m"
+docker pull liuyunhao1578/deformsim:latest &> /dev/null
+if [ $# == 0 ]; then
+	echo -e "\033[33mno working dir specified\033[0m"
+else
+	paths=$(echo ${@:-1} | tr  "," "\n")
+	echo $paths
+	maps=""
+	for eachpath in $paths
+	do
+		[[ $eachpath != /home* ]] && echo -e "\033[31mThe path must be absolute\033[0m"
+		[[ $eachpath == /home* ]] && inner=$(realpath --relative-to="$HOME" "$eachpath") && maps="${maps} -v ${eachpath}:/root/${inner}"
+	done
+fi
+echo -e "\033[34mExecute the following command to enter the DEV-DEPLOYMENT ENV\033[0m"
+echo
+echo "nvidia-docker run $maps -d liuyunhao1578/deformsim:latest /bin/bash"
+echo
