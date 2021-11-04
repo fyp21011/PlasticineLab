@@ -2,7 +2,7 @@
 
 ![Docker build](https://img.shields.io/github/workflow/status/fyp21011/PlasticineLab/Docker)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/taichi)
-![Taichi Dependency](https://img.shields.io/badge/taichi-<=0.7.14-orange) 
+![Taichi Dependency](https://img.shields.io/badge/taichi-<=0.7.26-orange) 
 
 
 ## Usage
