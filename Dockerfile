@@ -1,7 +1,7 @@
-FROM liuyunhao1578/deformsim:0.1
+FROM liuyunhao1578/deformsim:latest
 
-COPY . /opt/PlasticineLab-latest/
-RUN pip3 install -e /opt/PlasticineLab-latest/
+COPY . /opt/PlasticineLab/
+RUN pip3 install -e /opt/PlasticineLab/
 RUN mkdir -p ~/output
 
 CMD /bin/bash
