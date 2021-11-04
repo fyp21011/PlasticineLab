@@ -1,9 +1,9 @@
 #!/bin/bash
-versionLine=$(docker image inspect liuyunhao1578/deformsim:latest | grep -i "image.version")
+versionLine=$(docker image inspect liuyunhao1578/deformsim:latest | grep -i "image.version" | tail -1)
 major=`echo ${versionLine#*:} | sed 's/\"//g' | cut -d. -f1`
 minor=`echo ${versionLine#*:} | sed 's/\"//g' | cut -d. -f2`
 patch=`echo ${versionLine#*:} | sed 's/\"//g' | cut -d. -f3`
-echo -e "\033[34mOrigin tag ${major}.${minor}.${patch}[0m"
+echo -e "\033[34mOrigin tag ${major}.${minor}.${patch}\033[0m"
 let patch=patch+1
 echo -e "\033[34mNew tag ${major}.${minor}.${patch}\033[0m"
 tag="v${major}.${minor}.${patch}"
