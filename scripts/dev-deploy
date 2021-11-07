@@ -1,8 +1,27 @@
 #!/bin/bash
+
+# check the inputs
+if [ $# -le 1 ]; then
+	echo -e "\033[33mdev-deploy [image]:[tag] [paths to be mapped]...\033[0m"
+	exit
+fi
+SHELL_DIR=$(dirname "$0")
+DEV_IMAGE=$1
+shift
+
+# build the image if not existing
+IMAGE_TAG_FROM_NAME=(${DEV_IMAGE//:/ })
+entry=`docker images | grep -E "${IMAGE_TAG_FROM_NAME[0]}\s+${IMAGE_TAG_FROM_NAME[1]}"`
+[[ -z $entry ]] && bash "${SHELL_DIR}/new-docker" "$DEV_IMAGE" || echo -e "\033[34mDocker image exists; skip building"
+
+# do the file mapping
 if [ $# == 0 ]; then
-	echo -e "\033[33mno working dir specified\033[0m"
+	echo -e "\033[33mno working dir specified. Using the current folder\033[0m"
+	eachpath=`pwd`
+	inner=$(realpath --relative-to="$HOME" "$eachpath")
+	maps="-v $(eachpath):/root/${inner}"
 else
-	paths=$(echo ${@:-1} | tr  "," "\n")
+	paths=$(echo $@ | tr  "," "\n")
 	maps=""
 	for eachpath in $paths
 	do
@@ -10,7 +29,5 @@ else
 		[[ $eachpath == /home* ]] && inner=$(realpath --relative-to="$HOME" "$eachpath") && maps="${maps} -v ${eachpath}:/root/${inner}"
 	done
 fi
-echo -e "\033[34mExecute the following command to enter the DEV-DEPLOYMENT ENV\033[0m"
-echo
-echo "nvidia-docker run $maps -d liuyunhao1578/deformsim:latest /bin/bash"
-echo
+echo -e "\033[34mExecuting\033[0m nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash"
+nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash
