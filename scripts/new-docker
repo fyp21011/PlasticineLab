@@ -1,0 +1,5 @@
+#!/bin/bash
+IMAGE_NAME=$1
+echo -e "\033[33mNo such image:$IMAGE_NAME\n\033[34mRebuilding\033[0m"
+REPO_DIR=$(cd "$(dirname "$0")";cd ..;pwd)
+docker build -t $IMAGE_NAME $REPO_DIR

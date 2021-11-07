@@ -13,7 +13,7 @@ install_requires = [
     'baselines',
     'pandas',
     'seaborn',
-    'image.io'
+    'imageio'
 ]
 
 setup(name='plb',
