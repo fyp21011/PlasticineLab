@@ -12,7 +12,7 @@ shift
 # build the image if not existing
 IMAGE_TAG_FROM_NAME=(${DEV_IMAGE//:/ })
 entry=`docker images | grep -E "${IMAGE_TAG_FROM_NAME[0]}\s+${IMAGE_TAG_FROM_NAME[1]}"`
-[[ -z $entry ]] && bash "${SHELL_DIR}/new-docker" "$DEV_IMAGE" || echo -e "\033[34mDocker image exists; skip building"
+[[ -z $entry ]] && bash "${SHELL_DIR}/new-docker" "$DEV_IMAGE" || echo -e "\033[33mDocker image exists; skip building\033[0m"
 
 # do the file mapping
 if [ $# == 0 ]; then
@@ -30,4 +30,5 @@ else
 	done
 fi
 echo -e "\033[34mExecuting\033[0m nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash"
-nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash
+container=`nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash`
+echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background. You can attach to it using this hash\033[0m"
