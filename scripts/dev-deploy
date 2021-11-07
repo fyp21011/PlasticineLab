@@ -1,6 +1,4 @@
 #!/bin/bash
-echo -e "\033[32mChecking for Docker image version\033[0m"
-docker pull liuyunhao1578/deformsim:latest &> /dev/null
 if [ $# == 0 ]; then
 	echo -e "\033[33mno working dir specified\033[0m"
 else
