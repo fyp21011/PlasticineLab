@@ -9,6 +9,25 @@ SHELL_DIR=$(dirname "$0")
 DEV_IMAGE=$1
 shift
 
+CACHE_CONTAINER=`docker container ls -a | grep ${DEV_IMAGE}`
+if [ -n "$CACHE_CONTAINER" ]; then
+	echo -e "\033[33mThere are cached container instance(s) of this image\nAre you to rebuild the image or use the cached one?\033[0m"
+	echo -e "1) Use the cached one \033[34m[DEFAULT]\033[0m"
+	echo    "2) Re-build the image and run a new container anyway"
+	read -p "1 or 2?"
+	if [ $REPLY == '1' ]; then
+		container=`docker start ${CACHE_CONTAINER:0:12}`
+		echo -e "\033[34mThe container has been started at \033[0m${container}\033[34m in the background."
+		echo -e "You can attach to it using this hash\033[0m"
+		exit
+	elif [ $REPLY == '2' ]; then
+		docker container rm ${CACHE_CONTAINER:0:12}
+	else
+		echo -e "\033[33mInvalid reply: $REPLY\033[0m"
+		exit
+	fi
+fi
+
 # build the image if not existing
 IMAGE_TAG_FROM_NAME=(${DEV_IMAGE//:/ })
 entry=`docker images | grep -E "${IMAGE_TAG_FROM_NAME[0]}\s+${IMAGE_TAG_FROM_NAME[1]}"`
@@ -31,4 +50,5 @@ else
 fi
 echo -e "\033[34mExecuting\033[0m nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash"
 container=`nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash`
-echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background. You can attach to it using this hash\033[0m"
+echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background."
+echo -e "You can attach to it using this hash\033[0m"
