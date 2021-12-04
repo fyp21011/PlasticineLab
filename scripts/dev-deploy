@@ -2,7 +2,7 @@
 
 # check the inputs
 if [ $# -lt 1 ]; then
-	echo -e "\033[33mdev-deploy [image]:[tag] [paths to be mapped]...\033[0m"
+	echo -e "\033[33mdev-deploy IMAGE:TAG [paths to be mapped (separated by comma, with no spaces!)]...\033[0m"
 	exit
 fi
 SHELL_DIR=$(dirname "$0")
