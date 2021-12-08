@@ -1,3 +1,18 @@
+""" Functional tests for the URDF module
+
+Usage
+---
+python3 functional_test.py [URDF path] [options]
+
+Options
+---
+-c      use the collision mesh (otherwise the
+        visualized mesh is used for renderring)
+-a      animate the URDF (not supported in the
+        current Open3D version)
+--nogui do not display any graphic output, but
+        conducting analytical analysis
+"""
 import argparse
 import copy
 import random

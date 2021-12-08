@@ -12,7 +12,6 @@ data
 *.ply*
 *linecount*
 *pytest_cache*
-*.vscode*
 *dsprites-dataset*
 
 *.code-workspace*
