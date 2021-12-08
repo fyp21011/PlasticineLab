@@ -324,6 +324,7 @@ class Mesh(URDFType):
         meshes = self.meshes
         if isinstance(meshes, list) and len(meshes) == 1:
             meshes = meshes[0]
+        meshes.compute_vertex_normals()
         o3d.io.write_triangle_mesh(fn, meshes)
 
         # Unparse the node
