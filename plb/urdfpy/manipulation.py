@@ -7,10 +7,10 @@ import networkx as nx
 import numpy as np
 import six
 
-from urdfpy.urdf.base import URDFType
-from urdfpy.urdf.joint import Joint
-from urdfpy.urdf.transmission import Transmission
-from urdfpy.urdf.link import Material, Link
+from plb.urdfpy.base import URDFType
+from plb.urdfpy.joint import Joint
+from plb.urdfpy.transmission import Transmission
+from plb.urdfpy.link import Material, Link
 
 class Robot(URDFType):
     """The top-level URDF specification for a robot.

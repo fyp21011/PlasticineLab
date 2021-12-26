@@ -5,8 +5,8 @@ import numpy as np
 import PIL
 import six
 
-from urdfpy.urdf.base import URDFType
-from urdfpy.urdf.geometry import Geometry, Collision
+from plb.urdfpy.base import URDFType
+from plb.urdfpy.geometry import Geometry, Collision
 from urdfpy.utils import (
     parse_origin,
     unparse_origin,

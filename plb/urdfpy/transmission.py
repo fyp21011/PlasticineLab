@@ -1,6 +1,6 @@
 from lxml import etree as ET
 
-from urdfpy.urdf.base import URDFType
+from plb.urdfpy.base import URDFType
 
 class Actuator(URDFType):
     """An actuator.

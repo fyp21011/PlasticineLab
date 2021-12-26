@@ -2,8 +2,8 @@ from lxml import etree as ET
 import numpy as np
 import open3d as o3d
 
-from urdfpy.urdf.base import URDFType
-from urdfpy.utils import configure_origin, parse_origin, unparse_origin
+from plb.urdfpy.base import URDFType
+from plb.urdfpy.utils import configure_origin, parse_origin, unparse_origin
 
 
 class JointCalibration(URDFType):

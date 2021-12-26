@@ -5,8 +5,8 @@ import numpy as np
 import open3d as o3d
 import six
 
-from urdfpy.urdf.base import URDFType
-from urdfpy.utils import (
+from plb.urdfpy.base import URDFType
+from plb.urdfpy.utils import (
     parse_origin,
     unparse_origin,
     get_filename,
