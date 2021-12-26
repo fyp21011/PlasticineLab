@@ -7,7 +7,7 @@ import six
 
 from plb.urdfpy.base import URDFType
 from plb.urdfpy.geometry import Geometry, Collision
-from urdfpy.utils import (
+from plb.urdfpy.utils import (
     parse_origin,
     unparse_origin,
     get_filename,
