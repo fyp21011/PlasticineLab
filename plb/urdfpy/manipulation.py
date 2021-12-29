@@ -414,90 +414,6 @@ class Robot(URDFType):
             return {ell.name: fk[ell] for ell in fk}
         return fk
 
-    def link_fk_batch(self, cfgs=None, link=None, links=None, use_names=False):
-        """Computes the poses of the URDF's links via forward kinematics in a batch.
-
-        Parameters
-        ----------
-        cfgs : dict, list of dict, or (n,m), float
-            One of the following: (A) a map from joints or joint names to vectors
-            of joint configuration values, (B) a list of maps from joints or joint names
-            to single configuration values, or (C) a list of ``n`` configuration vectors,
-            each of which has a vector with an entry for each actuated joint.
-        link : str or :class:`.Link`
-            A single link or link name to return a pose for.
-        links : list of str or list of :class:`.Link`
-            The links or names of links to perform forward kinematics on.
-            Only these links will be in the returned map. If neither
-            link nor links are specified all links are returned.
-        use_names : bool
-            If True, the returned dictionary will have keys that are string
-            link names rather than the links themselves.
-
-        Returns
-        -------
-        fk : dict or (n,4,4) float
-            A map from links to a (n,4,4) vector of homogenous transform matrices that
-            position the links relative to the base link's frame, or a single
-            nx4x4 matrix if ``link`` is specified.
-        """
-        joint_cfgs, n_cfgs = self._process_cfgs(cfgs)
-
-        # Process link set
-        link_set = set()
-        if link is not None:
-            if isinstance(link, six.string_types):
-                link_set.add(self._link_map[link])
-            elif isinstance(link, Link):
-                link_set.add(link)
-        elif links is not None:
-            for lnk in links:
-                if isinstance(lnk, six.string_types):
-                    link_set.add(self._link_map[lnk])
-                elif isinstance(lnk, Link):
-                    link_set.add(lnk)
-                else:
-                    raise TypeError('Got object of type {} in links list'
-                                    .format(type(lnk)))
-        else:
-            link_set = self.links
-
-        # Compute FK mapping each link to a vector of matrices, one matrix per cfg
-        fk = OrderedDict()
-        for lnk in self._reverse_topo:
-            if lnk not in link_set:
-                continue
-            poses = np.tile(np.eye(4, dtype=np.float64), (n_cfgs, 1, 1))
-            path = self._paths_to_base[lnk]
-            for i in range(len(path) - 1):
-                child = path[i]
-                parent = path[i + 1]
-                joint = self._G.get_edge_data(child, parent)['joint']
-
-                cfg_vals = None
-                if joint.mimic is not None:
-                    mimic_joint = self._joint_map[joint.mimic.joint]
-                    if mimic_joint in joint_cfgs:
-                        cfg_vals = joint_cfgs[mimic_joint]
-                        cfg_vals = joint.mimic.multiplier * cfg_vals + joint.mimic.offset
-                elif joint in joint_cfgs:
-                    cfg_vals = joint_cfgs[joint]
-                poses = np.matmul(joint.get_child_poses(cfg_vals, n_cfgs), poses)
-
-                if parent in fk:
-                    poses = np.matmul(fk[parent], poses)
-                    break
-            fk[lnk] = poses
-
-        if link:
-            if isinstance(link, six.string_types):
-                return fk[self._link_map[link]]
-            else:
-                return fk[link]
-        if use_names:
-            return {ell.name: fk[ell] for ell in fk}
-        return fk
-
     def visual_mesh_fk(self, cfg=None, links=None):
         """Computes the poses of the URDF's visual triangle mesh using fk.
 
@@ -570,40 +486,6 @@ class Robot(URDFType):
             if cm is not None:
                 fk[cm] = pose
         return fk
-
-    def collision_mesh_fk_batch(self, cfgs=None, links=None):
-        """Computes the poses of the URDF's collision mesh using fk.
-
-        Parameters
-        ----------
-        cfgs : dict, list of dict, or (n,m), float
-            One of the following: (A) a map from joints or joint names to vectors
-            of joint configuration values, (B) a list of maps from joints or joint names
-            to single configuration values, or (C) a list of ``n`` configuration vectors,
-            each of which has a vector with an entry for each actuated joint.
-        links : list of str or list of :class:`.Link`
-            The links or names of links to perform forward kinematics on.
-            Only triangle meshes from these links will be in the returned map.
-            If not specified, all links are returned.
-
-        Returns
-        -------
-        fk : dict
-            A map from :class:`open3d.geometry.TriangleMesh` objects that are
-            part of the collision geometry of the specified links to the
-            4x4 homogenous transform matrices that position them relative
-            to the base link's frame.
-        """
-        lfk = self.link_fk_batch(cfgs=cfgs, links=links)
-
-        fk = OrderedDict()
-        for link in lfk:
-            poses = lfk[link]
-            cm = link.collision_mesh
-            if cm is not None:
-                fk[cm] = poses
-        return fk
-
 
     def copy(self, name=None, prefix='', scale=None, collision_only=False):
         """Make a deep copy of the URDF.
