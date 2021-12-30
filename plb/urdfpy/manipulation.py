@@ -1,8 +1,8 @@
-from _typeshed import NoneType
 from collections import OrderedDict
 import copy
+from enum import Enum
 import os
-from typing import List, Union
+from typing import Dict, Union
 
 from lxml import etree as ET
 import networkx as nx
@@ -13,6 +13,11 @@ from plb.urdfpy.base import URDFType
 from plb.urdfpy.joint import Joint
 from plb.urdfpy.transmission import Transmission
 from plb.urdfpy.link import Material, Link
+
+class FK_CFG_Type(Enum):
+    velocity = 1
+    angle    = 2
+    
 
 class Robot(URDFType):
     """The top-level URDF specification for a robot.
@@ -70,7 +75,7 @@ class Robot(URDFType):
         self._joint_map = {}
         self._transmission_map = {}
         self._material_map = {}
-        self._current_pos_cfg: Union[NoneType, OrderedDict] = None
+        self._current_cfg: Union[None, Dict] = None
 
         for x in self._links:
             if x.name in self._link_map:
@@ -330,7 +335,7 @@ class Robot(URDFType):
             limits.append(limit)
         return np.array(limits)
 
-    def link_fk(self, cfg=None, link=None, links=None, use_names=False):
+    def link_fk(self, cfg=None, link=None, links=None, use_names=False, cfgType=FK_CFG_Type.angle):
         """Computes the poses of the URDF's links via forward kinematics.
 
         Parameters
@@ -360,6 +365,11 @@ class Robot(URDFType):
         """
         # Process config value
         joint_cfg = self._process_cfg(cfg)
+        if cfgType == FK_CFG_Type.angle or self._current_cfg is None:
+            self._current_cfg = joint_cfg
+        else:
+            for joint, raw_cfg in joint_cfg:
+                self._current_cfg[joint] += raw_cfg
 
         # Process link set
         link_set = set()
@@ -396,10 +406,10 @@ class Robot(URDFType):
                 if joint.mimic is not None:
                     mimic_joint = self._joint_map[joint.mimic.joint]
                     if mimic_joint in joint_cfg:
-                        cfg = joint_cfg[mimic_joint]
+                        cfg = self._current_cfg[mimic_joint]
                         cfg = joint.mimic.multiplier * cfg + joint.mimic.offset
                 elif joint in joint_cfg:
-                    cfg = joint_cfg[joint]
+                    cfg = self._current_cfg[joint]
                 pose = joint.get_child_pose(cfg).dot(pose)
 
                 # Check existing FK to see if we can exit early
@@ -489,43 +499,6 @@ class Robot(URDFType):
             if cm is not None:
                 fk[cm] = pose
         return fk
-
-    def apply_actions(self,
-            actions:Union[np.ndarray, List[List]], 
-            start: OrderedDict = None,
-            reset: bool = False
-        ) -> OrderedDict:
-        """ Apply a sequence of actions onto the robot
-
-        Parameters
-        ---
-        actions: a sequence of actions, the i-th element
-            corresponding to the actions that should be
-            applied onto EACH joint in self.actuated_joints
-            at the i-th timestep
-
-        Returns
-        ---
-        The FK dictionary for collision mesh, after the sequence
-        is applied. 
-        """
-        if reset: 
-            self._current_pos_cfg = None
-        elif start is not None:
-            self._current_pos_cfg = start
-        if self._current_pos_cfg is None:
-            self._current_pos_cfg = OrderedDict()
-        for timeStep, action in enumerate(actions):
-            if len(action) != len(self.actuated_joints):
-                raise ValueError(f'actions[{timeStep}] does not match the ' + \
-                    f'number of joints: {len(self.actuated_joints)}')
-            for jointAction, joint in zip(action, self.actuated_joints):
-                if joint not in self.actuated_joint_names: 
-                    self._current_pos_cfg[joint] = jointAction.copy()
-                else:
-                    self._current_pos_cfg[joint] += jointAction
-        return self.collision_mesh_fk(cfg = self._current_pos_cfg)
-        
 
     def copy(self, name=None, prefix='', scale=None, collision_only=False):
         """Make a deep copy of the URDF.
