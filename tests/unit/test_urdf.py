@@ -70,11 +70,6 @@ def test_urdfpy(tmpdir):
             assert isinstance(fk[key], np.ndarray)
             assert fk[key].shape == (4,4)
 
-    cfg = {j.name: np.random.uniform(size=1000) for j in u.actuated_joints}
-    fk = u.link_fk_batch(cfgs=cfg)
-    for key in fk:
-        assert isinstance(fk[key], np.ndarray)
-        assert fk[key].shape == (1000,4,4)
 
     cfg={j.name: 0.5 for j in u.actuated_joints}
     for _ in range(1000):
@@ -82,11 +77,6 @@ def test_urdfpy(tmpdir):
         for key in fk:
             assert isinstance(key, o3d.geometry.TriangleMesh)
             assert fk[key].shape == (4,4)
-    cfg = {j.name: np.random.uniform(size=1000) for j in u.actuated_joints}
-    fk = u.collision_mesh_fk_batch(cfgs=cfg)
-    for key in fk:
-        assert isinstance(key, o3d.geometry.TriangleMesh)
-        assert fk[key].shape == (1000,4,4)
 
     # Test save
     u.save(outfn)

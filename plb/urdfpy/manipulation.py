@@ -541,15 +541,15 @@ class Robot(URDFType):
         tree.write(file_obj, pretty_print=True,
                    xml_declaration=True, encoding='utf-8')
 
-    def join(self, other, link, origin=None, name=None, prefix=''):
-        """Join another URDF to this one by rigidly fixturing the two at a link.
+    def join(self, other: "Robot", link, origin=None, name=None, prefix=''):
+        """Join another Robot to this one by rigidly fixturing the two at a link.
 
         Parameters
         ----------
-        other : :class:.`URDF`
+        other : :class:.`Robot`
             Another URDF to fuze to this one.
         link : :class:`.Link` or str
-            The link of this URDF to attach the other URDF to.
+            The link of this Robot to which the other Robot's base link will be attached.
         origin : (4,4) float, optional
             The location in this URDF's link frame to attach the base link of the other
             URDF at.
@@ -561,8 +561,8 @@ class Robot(URDFType):
 
         Returns
         -------
-        :class:`.URDF`
-            The new URDF.
+        :class:`.Robot`
+            The merging result.
         """
         myself = self.copy()
         other = other.copy(prefix=prefix)
@@ -600,6 +600,12 @@ class Robot(URDFType):
 
     def _merge_materials(self):
         """Merge the top-level material set with the link materials.
+
+        For each link visual's material, if there exists the same material
+        already, use the existing material to overrite this link visual's.
+
+        Two material object are regarded as the same if they occupies the
+        same name.
         """
         for link in self.links:
             for v in link.visuals:
@@ -613,7 +619,7 @@ class Robot(URDFType):
 
     @staticmethod
     def load(file_obj):
-        """Load a URDF from a file.
+        """Load a URDF described robot from an XML file.
 
         Parameters
         ----------
@@ -625,8 +631,8 @@ class Robot(URDFType):
 
         Returns
         -------
-        urdf : :class:`.URDF`
-            The parsed URDF.
+        urdf : :class:`.Robot`
+            The parsed Robot.
         """
         if isinstance(file_obj, six.string_types):
             if os.path.isfile(file_obj):
@@ -792,49 +798,6 @@ class Robot(URDFType):
         else:
             raise TypeError('Invalid type for config')
         return joint_cfg
-
-    def _process_cfgs(self, cfgs):
-        """Process a list of joint configurations into a dictionary mapping joints to
-        configuration values.
-
-        This should result in a dict mapping each joint to a list of cfg values, one
-        per joint.
-        """
-        joint_cfg = {j : [] for j in self.actuated_joints}
-        n_cfgs = None
-        if isinstance(cfgs, dict):
-            for joint in cfgs:
-                if isinstance(joint, six.string_types):
-                    joint_cfg[self._joint_map[joint]] = cfgs[joint]
-                else:
-                    joint_cfg[joint] = cfgs[joint]
-                if n_cfgs is None:
-                    n_cfgs = len(cfgs[joint])
-        elif isinstance(cfgs, (list, tuple, np.ndarray)):
-            n_cfgs = len(cfgs)
-            if isinstance(cfgs[0], dict):
-                for cfg in cfgs:
-                    for joint in cfg:
-                        if isinstance(joint, six.string_types):
-                            joint_cfg[self._joint_map[joint]].append(cfg[joint])
-                        else:
-                            joint_cfg[joint].append(cfg[joint])
-            elif cfgs[0] is None:
-                pass
-            else:
-                cfgs = np.asanyarray(cfgs, dtype=np.float64)
-                for i, j in enumerate(self.actuated_joints):
-                    joint_cfg[j] = cfgs[:,i]
-        else:
-            raise ValueError('Incorrectly formatted config array')
-
-        for j in joint_cfg:
-            if len(joint_cfg[j]) == 0:
-                joint_cfg[j] = None
-            elif len(joint_cfg[j]) != n_cfgs:
-                raise ValueError('Inconsistent number of configurations for joints')
-
-        return joint_cfg, n_cfgs
 
     @classmethod
     def _from_xml(cls, node, path):

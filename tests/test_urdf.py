@@ -55,7 +55,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-a',
         action='store_true',
-        help='Visualize robot articulation'
+        help='Visualize robot animation'
     )
     parser.add_argument(
         '-c',
