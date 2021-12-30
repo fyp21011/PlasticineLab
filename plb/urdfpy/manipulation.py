@@ -1,6 +1,8 @@
+from _typeshed import NoneType
 from collections import OrderedDict
 import copy
 import os
+from typing import List, Union
 
 from lxml import etree as ET
 import networkx as nx
@@ -68,6 +70,7 @@ class Robot(URDFType):
         self._joint_map = {}
         self._transmission_map = {}
         self._material_map = {}
+        self._current_pos_cfg: Union[NoneType, OrderedDict] = None
 
         for x in self._links:
             if x.name in self._link_map:
@@ -486,6 +489,43 @@ class Robot(URDFType):
             if cm is not None:
                 fk[cm] = pose
         return fk
+
+    def apply_actions(self,
+            actions:Union[np.ndarray, List[List]], 
+            start: OrderedDict = None,
+            reset: bool = False
+        ) -> OrderedDict:
+        """ Apply a sequence of actions onto the robot
+
+        Parameters
+        ---
+        actions: a sequence of actions, the i-th element
+            corresponding to the actions that should be
+            applied onto EACH joint in self.actuated_joints
+            at the i-th timestep
+
+        Returns
+        ---
+        The FK dictionary for collision mesh, after the sequence
+        is applied. 
+        """
+        if reset: 
+            self._current_pos_cfg = None
+        elif start is not None:
+            self._current_pos_cfg = start
+        if self._current_pos_cfg is None:
+            self._current_pos_cfg = OrderedDict()
+        for timeStep, action in enumerate(actions):
+            if len(action) != len(self.actuated_joints):
+                raise ValueError(f'actions[{timeStep}] does not match the ' + \
+                    f'number of joints: {len(self.actuated_joints)}')
+            for jointAction, joint in zip(action, self.actuated_joints):
+                if joint not in self.actuated_joint_names: 
+                    self._current_pos_cfg[joint] = jointAction.copy()
+                else:
+                    self._current_pos_cfg[joint] += jointAction
+        return self.collision_mesh_fk(cfg = self._current_pos_cfg)
+        
 
     def copy(self, name=None, prefix='', scale=None, collision_only=False):
         """Make a deep copy of the URDF.
