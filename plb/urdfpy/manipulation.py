@@ -368,8 +368,8 @@ class Robot(URDFType):
         if cfgType == FK_CFG_Type.angle or self._current_cfg is None:
             self._current_cfg = joint_cfg
         else:
-            for joint, raw_cfg in joint_cfg:
-                self._current_cfg[joint] += raw_cfg
+            for joint in joint_cfg:
+                self._current_cfg[joint] += joint_cfg[joint]
 
         # Process link set
         link_set = set()
@@ -466,6 +466,29 @@ class Robot(URDFType):
                 fk[geometryMesh] = pose
         return fk
 
+    @staticmethod
+    def link_fk_2_mesh_fk(linkFK: Dict[Link, np.ndarray]) -> OrderedDict:
+        """ Convert the dict from Link objects to poses to an ordered dict
+        from the link's collision mesh to poses
+
+        Parameters
+        ----------
+        linkFK: a dictionary mappping Link objects to poses, the returned
+            value of self.link_fk
+        
+        Returns
+        -------
+        fk: an ordered dict, from each link object's collision mesh to 
+            the corresponding pose
+        """
+        fk = OrderedDict()
+        for link in linkFK:
+            pose = linkFK[link]
+            cm = link.collision_mesh
+            if cm is not None:
+                fk[cm] = pose
+        return fk
+
     def collision_mesh_fk(self, cfg=None, links=None):
         """Computes the poses of the URDF's collision mesh using fk.
 
@@ -491,14 +514,7 @@ class Robot(URDFType):
             to the base link's frame.
         """
         lfk = self.link_fk(cfg=cfg, links=links)
-
-        fk = OrderedDict()
-        for link in lfk:
-            pose = lfk[link]
-            cm = link.collision_mesh
-            if cm is not None:
-                fk[cm] = pose
-        return fk
+        return self.link_fk_2_mesh_fk(lfk)
 
     def copy(self, name=None, prefix='', scale=None, collision_only=False):
         """Make a deep copy of the URDF.
