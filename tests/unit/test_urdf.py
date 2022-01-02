@@ -3,6 +3,7 @@ import pytest
 import open3d as o3d
 
 from plb.urdfpy import Robot, Link, Joint, Transmission, Material
+from plb.urdfpy.manipulation import FK_CFG_Type
 
 
 def test_urdfpy(tmpdir):
@@ -99,3 +100,23 @@ def test_urdfpy(tmpdir):
     assert isinstance(x, Robot)
     x = x.copy(scale=[1,1,3])
     assert isinstance(x, Robot)
+
+def test_velocity_fk():
+    u = Robot.load('tests/data/ur5/ur5.urdf')
+    u.link_fk({'shoulder_pan_joint': 0.5}, cfgType = FK_CFG_Type.velocity)
+    u.link_fk({'shoulder_pan_joint': 0.5}, cfgType = FK_CFG_Type.velocity)
+    u.link_fk({'shoulder_pan_joint': 0.5}, cfgType = FK_CFG_Type.velocity)
+    lastFk = u.link_fk({'shoulder_pan_joint': 0.5}, cfgType = FK_CFG_Type.velocity)
+    trueFk = u.link_fk({'shoulder_pan_joint': 2}, cfgType = FK_CFG_Type.angle)
+    assert isinstance(trueFk, dict)
+    assert isinstance(lastFk, dict)
+    for l in lastFk:
+        assert isinstance(l, Link)
+        assert l in trueFk
+        assert isinstance(lastFk[l], np.ndarray)
+        assert isinstance(trueFk[l], np.ndarray)
+        assert lastFk[l].shape == (4,4)
+        assert trueFk[l].shape == (4,4)
+        assert np.all(trueFk[l] == lastFk[l]), \
+            f"ERROR: final position after integration of velocity "+ \
+            f"is {lastFk[l]}; expecting: {trueFk[l]}"
