@@ -30,7 +30,25 @@ FRAME_RATE = 1/24
 MESH_TYPE = o3d.geometry.TriangleMesh
 
 
-def _visualize_new_frame(vis: o3d.visualization.Visualizer, linkFk: Dict[Link, Any], lastPoses: Union[None, Dict[str, Tuple[MESH_TYPE, np.ndarray]]] = None):
+def _visualize_new_frame(
+    vis:       o3d.visualization.Visualizer,
+    linkFk:    Dict[Link, Any],
+    lastPoses: Union[None, Dict[str, Tuple[MESH_TYPE, np.ndarray]]] = None
+) -> Dict[str, Tuple[MESH_TYPE, np.ndarray]]:
+    """ Update the visualizer for a new frame
+
+    Parameters
+    ----------
+    vis: the visualizer
+    linkFk: the forward kinematics result of the current frame
+    lastPoses: the returned value of THIS method at the previous
+        frame. Set to None if this is the first frame.
+
+    Returns
+    -------
+    Mapping from link names to the mesh that is currently
+    renderred by the visualizer, together with its poses
+    """
     if lastPoses is None:
         lastPoses = {}
     for link in linkFk:
@@ -79,7 +97,13 @@ def show_dynamic_robot(robot: Robot, actionList: List[Dict[str, Any]]):
         time.sleep(FRAME_RATE)
 
 
-def show_static_robot(robot: Robot):
+def show_static_robot(robot: Robot) -> None:
+    """ Visualize a robot statically using random pose
+
+    Paramters
+    ---------
+    robot: the loaded robot object
+    """
     robotFk = robot.visual_mesh_fk({
         joint.name: random.uniform(0.0, 3.1415926)
         for joint in robot.joints
