@@ -1,4 +1,5 @@
 import copy
+from typing import List
 
 from lxml import etree as ET
 import numpy as np
@@ -369,7 +370,7 @@ class Link(URDFType):
         self._name = str(value)
 
     @property
-    def visuals(self):
+    def visuals(self) -> List[Visual]:
         """list of :class:`.Visual` : The visual properties of this link.
         """
         return self._visuals

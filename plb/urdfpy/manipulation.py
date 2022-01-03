@@ -2,7 +2,7 @@ from collections import OrderedDict
 import copy
 from enum import Enum
 import os
-from typing import Dict, Union
+from typing import Any, Dict, Iterable, List, Set, Union
 
 from lxml import etree as ET
 import networkx as nx
@@ -17,7 +17,6 @@ from plb.urdfpy.link import Material, Link
 class FK_CFG_Type(Enum):
     velocity = 1
     angle    = 2
-    
 
 class Robot(URDFType):
     """The top-level URDF specification for a robot.
@@ -146,7 +145,7 @@ class Robot(URDFType):
         self._name = str(value)
 
     @property
-    def links(self):
+    def links(self) -> List[Link]:
         """list of :class:`.Link` : The links of the URDF.
 
         This returns a copy of the links array which cannot be edited
