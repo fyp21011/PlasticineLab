@@ -6,12 +6,14 @@ python3 functional_test.py [URDF path] [options]
 
 Options
 ---
--c      use the collision mesh (otherwise the
-        visualized mesh is used for renderring)
--a      animate the URDF (not supported in the
-        current Open3D version)
---nogui do not display any graphic output, but
-        conducting analytical analysis
+-c       use the collision mesh (otherwise the
+         visualized mesh is used for renderring)
+-a       animate the URDF (not supported in the
+         current Open3D version)
+--nogui  do not display any graphic output, but
+         conducting analytical analysis
+--action specify the file from which the animation
+         actions is loaded
 """
 import argparse
 import copy
@@ -24,40 +26,47 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 import numpy as np
 
 import open3d as o3d
+
 from plb.urdfpy import Robot
 from plb.urdfpy.link import Link
 from plb.urdfpy.manipulation import FK_CFG_Type
 
 FRAME_RATE = 1
-
 MESH_TYPE = o3d.geometry.TriangleMesh
+VISUALIZER_TYPE = o3d.visualization.Visualizer
 
 
 class ActionParser(cmd.Cmd):
     """ Parser the user's input to get the actions for the demo robot
 
-    The parser expects three different inputs, in format of 
-    'ACT [joint name] [values...]'
-        to add a new action at the CURRENT timestep
-    'NEXT'
-        to finalized the current timestep and forward to the
-        next timestep
-    'RUN'
-        execute the action sequence
+    * LOAD [path]
+        load a pre-saved action sequence from `path`
+    * ACT [joint_name] [values ...]
+        add an action for a specified joint at the current timestep;
+        use TAB to find the joint
+    * NEXT
+        proceed the current actions, and move to the next timestep
+    * RUN
+        run all through all the timesteps to make an animation
+    * SAVE [path]
+        save the entire action sequence to `path`
+    * EXIT
 
     Parameters
     ----------
     names: a list of joints' names, which will used for tab auto-completion
     callback: the method to be invoked when the parsed action sequenced is
-        expected to be executed
+        expected to be executed, receiving two actions: actionDict, state
+    initialState: the initial state for callback
+    path2Action: file storing the action sequences
     """
-    def __init__(self, names: List[str], callback: Callable[[Dict, Dict], Dict], currentState: Dict = None, path2Action: str = '') -> None:
+    def __init__(self, names: List[str], callback: Callable[[Dict, Dict], Dict], initialState: Dict = None, path2Action: str = '') -> None:
         cmd.Cmd.__init__(self)
 
         self._names = names
         self._action_list: List[Dict] = [{}]
         self._callback = callback
-        self._currentState = currentState
+        self._currentState = initialState
         self._cursor = 0
         if len(path2Action) != 0:
             self.do_LOAD(path2Action)
@@ -76,7 +85,14 @@ class ActionParser(cmd.Cmd):
         print("* SAVE [path]\n\tsave the entire action sequence to path")
         print("* EXIT")
 
-    def _render_cursor(self):
+    def do_HELP(self, arg: str):
+        return self.do_help(arg)
+
+    def _render_current_actions(self):
+        """ Render the current action
+
+        The "current" action is defined as the one pointed by self._cursor
+        """
         self._currentState = self._callback(self._action_list[self._cursor], self._currentState)
 
     def do_LOAD(self, path: str):
@@ -87,13 +103,13 @@ class ActionParser(cmd.Cmd):
                 self._action_list = pickle.load(f)
             print(f'ACTIONS LOADED')
             if not isinstance(self._action_list, list):
-                raise ValueError(f'The loaded action_list expected to be a list, but a {type(self._action_list)}')
+                raise ValueError(f'The loaded action_list expected to be a list, but a {type(self._action_list)} received')
             if len(self._action_list) == 0:
                 raise ValueError(f'Empty action file {path}')
 
     def do_RUN(self, arg: str):
         while self._cursor < len(self._action_list):
-            self._render_cursor()
+            self._render_current_actions()
             self._cursor += 1
         self._action_list.append({})
 
@@ -115,7 +131,7 @@ class ActionParser(cmd.Cmd):
         self._action_list[self._cursor][jointName] = floatAction
     
     def do_NEXT(self, arg: str):
-        self._render_cursor()
+        self._render_current_actions()
         self._cursor += 1
         if len(self._action_list) == self._cursor:
             self._action_list.append({})
@@ -139,7 +155,7 @@ class ActionParser(cmd.Cmd):
 
 
 def _visualize_new_frame(
-    vis:       o3d.visualization.Visualizer,
+    vis:       VISUALIZER_TYPE,
     linkFk:    Dict[Link, Any],
     lastPoses: Union[None, Dict[str, Tuple[MESH_TYPE, np.ndarray]]] = None
 ) -> Dict[str, Tuple[MESH_TYPE, np.ndarray]]:
@@ -177,7 +193,7 @@ def _visualize_new_frame(
     vis.update_renderer()
     return lastPoses
 
-def render_robot_animation(robot: Robot, visualizer: o3d.visualization.Visualizer, actions: Dict[str, Any], currentPose: Dict[Tuple(str, Any)]):
+def render_robot_animation(robot: Robot, visualizer: VISUALIZER_TYPE, actions: Dict[str, Any], currentPose: Dict[str, Any]):
     currentPose = _visualize_new_frame(
         visualizer, 
         robot.link_fk(
@@ -216,19 +232,20 @@ def main(path:str, animate:bool=True, nogui:bool=False, path4PickleLoad: str = '
     robot = Robot.load(path)
     if not nogui:
         if animate:
+            # init
             visualizer = o3d.visualization.Visualizer()
             visualizer.create_window()
             currentPose = _visualize_new_frame(
                 visualizer,
                 robot.link_fk()
             )
-            p = ActionParser(
+            # run
+            ActionParser(
                 names        = list(robot.joint_map.keys()),
                 callback     = render_robot_animation, 
-                currentState = currentPose, 
+                initialState = currentPose, 
                 path2Action  = path4PickleLoad
-            )
-            p.cmdloop()
+            ).cmdloop()
         else:
             show_static_robot(robot)
     else:
@@ -236,14 +253,6 @@ def main(path:str, animate:bool=True, nogui:bool=False, path4PickleLoad: str = '
         for mesh in cFk:
             assert mesh.has_triangles(), f"{mesh} has no triangles"
             print(mesh)
-
-def test_cmd():
-    robot = Robot.load('tests/data/ur5/ur5.urdf')
-    def debug_cmd(args):
-        for row in args: 
-            print(row)
-    p = ActionParser(names = list(robot.joint_map.keys()), callback = debug_cmd)
-    p.cmdloop()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -261,7 +270,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--actions',
         type=str,
-        help='path to actions file'
+        help='path to actions file',
+        default=''
     )
     noGui = parser.add_argument(
         '--nogui',
@@ -272,4 +282,4 @@ if __name__ == '__main__':
 
     if args.nogui and args.a:
         raise argparse.ArgumentError(noGui, "no gui cannot be set when -a (animation) is given")
-    main(args.path, args.a, args.nogui)
+    main(args.path, args.a, args.nogui, args.actions)
