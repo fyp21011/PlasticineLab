@@ -12,6 +12,7 @@ install_requires = [
     'yacs',
     'baselines',
     'pandas',
+    'pickle',
     'seaborn',
     'imageio',
     'open3d',

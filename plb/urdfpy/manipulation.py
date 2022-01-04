@@ -368,7 +368,10 @@ class Robot(URDFType):
             self._current_cfg = joint_cfg
         else:
             for joint in joint_cfg:
-                self._current_cfg[joint] += joint_cfg[joint]
+                if joint in self._current_cfg:
+                    self._current_cfg[joint] += joint_cfg[joint]
+                else:
+                    self._current_cfg[joint] = joint_cfg[joint]
 
         # Process link set
         link_set = set()

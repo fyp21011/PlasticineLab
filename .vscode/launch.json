@@ -6,18 +6,14 @@
     "configurations": [
         {
             "name": "Python: test URDF",
-            "cwd": "${workspaceFolder}/plb/urdf",
+            "cwd": "${workspaceFolder}",
             "type": "python",
             "request": "launch",
-            "program": "functional_test.py",
+            "module": "tests.demo_urdf",
             "console": "integratedTerminal",
-            "env": {
-                "DISPLAY": "localhost:10.0",
-                "PYOPENGL_PLATFORM": "egl"
-            }, 
             "args": [
-                "./tests/data/ur5/ur5.urdf",
-                "--nogui"
+                "tests/data/ur5/ur5.urdf", 
+                "-a"
             ]
         }
     ]

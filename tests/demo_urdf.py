@@ -16,10 +16,11 @@ Options
 import argparse
 import copy
 import cmd
+import os
+import pickle
 import random
 import time
 from typing import Any, Callable, Dict, List, Tuple, Union
-from typing_extensions import OrderedDict
 import numpy as np
 
 import open3d as o3d
@@ -27,7 +28,7 @@ from plb.urdfpy import Robot
 from plb.urdfpy.link import Link
 from plb.urdfpy.manipulation import FK_CFG_Type
 
-FRAME_RATE = 1/24
+FRAME_RATE = 1
 
 MESH_TYPE = o3d.geometry.TriangleMesh
 
@@ -50,18 +51,51 @@ class ActionParser(cmd.Cmd):
     callback: the method to be invoked when the parsed action sequenced is
         expected to be executed
     """
-    def __init__(self, names: List[str], callback: Callable[[List[Dict]], None]) -> None:
+    def __init__(self, names: List[str], callback: Callable[[Dict, Dict], Dict], currentState: Dict = None, path2Action: str = '') -> None:
         cmd.Cmd.__init__(self)
 
-        self._helpMsg = 'ACT [joint name] [values...] to add action, or \nNEXT to add timestep or \nRUN to run\n\nTry using tab to view the possible joint names'
         self._names = names
         self._action_list: List[Dict] = [{}]
         self._callback = callback
-
+        self._currentState = currentState
+        self._cursor = 0
+        if len(path2Action) != 0:
+            self.do_LOAD(path2Action)
         self.do_help(None)
 
+    @property
+    def promote(self) -> str:
+        return f"CURSOR @ {self._cursor} >"
+
     def do_help(self, arg: str):
-        print(self._helpMsg)
+        print("Usage: ")
+        print("* LOAD [path]\n\tload a pre-saved action sequence from `path`")
+        print("* ACT [joint_name] [values ...]\n\tadd action for a specified joint at the current timestep; use TAB to find the joint")
+        print("* NEXT\n\tproceed the current action, and move to the next timestep")
+        print("* RUN\n\trun all through all the timesteps to make an animation")
+        print("* SAVE [path]\n\tsave the entire action sequence to path")
+        print("* EXIT")
+
+    def _render_cursor(self):
+        self._currentState = self._callback(self._action_list[self._cursor], self._currentState)
+
+    def do_LOAD(self, path: str):
+        if not os.path.exists(path):
+            print(f"NO SUCH FILE: {path}")
+        else:
+            with open(path, 'rb') as f:
+                self._action_list = pickle.load(f)
+            print(f'ACTIONS LOADED')
+            if not isinstance(self._action_list, list):
+                raise ValueError(f'The loaded action_list expected to be a list, but a {type(self._action_list)}')
+            if len(self._action_list) == 0:
+                raise ValueError(f'Empty action file {path}')
+
+    def do_RUN(self, arg: str):
+        while self._cursor < len(self._action_list):
+            self._render_cursor()
+            self._cursor += 1
+        self._action_list.append({})
 
     def do_ACT(self, arg: str): 
         arg = arg.replace(', ', ' ')
@@ -78,22 +112,23 @@ class ActionParser(cmd.Cmd):
                 floatAction.append(float(word.strip()))
             floatAction = np.array(floatAction)
 
-        self._action_list[-1][jointName] = floatAction
+        self._action_list[self._cursor][jointName] = floatAction
     
     def do_NEXT(self, arg: str):
-        if len(self._action_list[-1]) == 0:
-            print("THE LAST TIMESTEP IS EMPTY YET, NO NEW TIMESTEP BEING ADDED")
-        else:
+        self._render_cursor()
+        self._cursor += 1
+        if len(self._action_list) == self._cursor:
             self._action_list.append({})
-            print(f"ADDING A NEW TIMESTEP, NOW TIMESTEP {len(self._action_list)}")
 
-    def do_RUN(self, arg: str):
-        if len(self._action_list[-1]) == 0:
-            self._action_list.pop()
-        if len(self._action_list) == 0:
-            print('WARN: no action to be renderred')
-            return
-        self._callback(self._action_list)
+    def do_SAVE(self, arg: str):
+        if arg:
+            if len(self._action_list[-1]) == 0:
+                self._action_list.pop()
+            with open(arg, 'wb') as f:
+                pickle.dump(self._action_list, f)
+                print(f'the current action list is saved into {f}')
+    
+    def do_EXIT(self, arg: str): 
         exit(0)
 
     def complete_ACT(self, text: str, line: str, start_index, end_index):
@@ -125,6 +160,8 @@ def _visualize_new_frame(
     if lastPoses is None:
         lastPoses = {}
     for link in linkFk:
+        if link.collision_mesh is None:
+            continue
         if link.name not in lastPoses:
             cm = link.collision_mesh
             vis.add_geometry(cm)
@@ -134,40 +171,23 @@ def _visualize_new_frame(
         pose = linkFk[link]
         cm.transform(pose)
         lastPoses[link.name] = (cm, pose)
+        cm.compute_vertex_normals()
         vis.update_geometry(cm)
+    vis.poll_events()
     vis.update_renderer()
     return lastPoses
 
-def show_dynamic_robot(robot: Robot, actionList: List[Dict[str, Any]]):
-    """ Render the animation of the robot given a list of action configs
-
-    Parameters
-    ----------
-    robot: the loaded URDF Robot
-    actionList: a list of action configuration. Each element in the list
-        corresponds to one timestep, which is a dict from Joint names to
-        the velocity being applied onto the joints
-
-    Returns
-    -------
-    None
-    """
-    visualizer = o3d.visualization.Visualizer()
-    visualizer.create_window()
+def render_robot_animation(robot: Robot, visualizer: o3d.visualization.Visualizer, actions: Dict[str, Any], currentPose: Dict[Tuple(str, Any)]):
     currentPose = _visualize_new_frame(
-        visualizer,
-        robot.link_fk()
+        visualizer, 
+        robot.link_fk(
+            cfg     = actions,
+            cfgType = FK_CFG_Type.velocity
+        ),
+        lastPoses = currentPose
     )
-    for eachFrameActions in actionList:
-        currentPose = _visualize_new_frame(
-            visualizer, 
-            robot.link_fk(
-                cfg     = eachFrameActions,
-                cfgType = FK_CFG_Type.velocity
-            ),
-            lastPoses = currentPose
-        )
-        time.sleep(FRAME_RATE)
+    time.sleep(FRAME_RATE)
+    return currentPose
 
 
 def show_static_robot(robot: Robot) -> None:
@@ -192,13 +212,21 @@ def show_static_robot(robot: Robot) -> None:
     o3d.visualization.draw_geometries(meshes)
 
 
-def main(path:str, animate:bool=True, nogui:bool=False):
+def main(path:str, animate:bool=True, nogui:bool=False, path4PickleLoad: str = ''):
     robot = Robot.load(path)
     if not nogui:
         if animate:
+            visualizer = o3d.visualization.Visualizer()
+            visualizer.create_window()
+            currentPose = _visualize_new_frame(
+                visualizer,
+                robot.link_fk()
+            )
             p = ActionParser(
-                names    = list(robot.joint_map.keys()),
-                callback = lambda actionsList : show_dynamic_robot(robot, actionsList)
+                names        = list(robot.joint_map.keys()),
+                callback     = render_robot_animation, 
+                currentState = currentPose, 
+                path2Action  = path4PickleLoad
             )
             p.cmdloop()
         else:
@@ -226,13 +254,14 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '-a',
+        '--animation',
         action='store_true',
         help='Visualize robot animation'
     )
     parser.add_argument(
-        '-c',
-        action='store_true',
-        help='Use collision geometry'
+        '--actions',
+        type=str,
+        help='path to actions file'
     )
     noGui = parser.add_argument(
         '--nogui',
