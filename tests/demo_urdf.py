@@ -15,9 +15,11 @@ Options
 """
 import argparse
 import copy
+import cmd
 import random
 import time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
+from typing_extensions import OrderedDict
 import numpy as np
 
 import open3d as o3d
@@ -28,6 +30,77 @@ from plb.urdfpy.manipulation import FK_CFG_Type
 FRAME_RATE = 1/24
 
 MESH_TYPE = o3d.geometry.TriangleMesh
+
+
+class ActionParser(cmd.Cmd):
+    """ Parser the user's input to get the actions for the demo robot
+
+    The parser expects three different inputs, in format of 
+    'ACT [joint name] [values...]'
+        to add a new action at the CURRENT timestep
+    'NEXT'
+        to finalized the current timestep and forward to the
+        next timestep
+    'RUN'
+        execute the action sequence
+
+    Parameters
+    ----------
+    names: a list of joints' names, which will used for tab auto-completion
+    callback: the method to be invoked when the parsed action sequenced is
+        expected to be executed
+    """
+    def __init__(self, names: List[str], callback: Callable[[List[Dict]], None]) -> None:
+        cmd.Cmd.__init__(self)
+
+        self._helpMsg = 'ACT [joint name] [values...] to add action, or \nNEXT to add timestep or \nRUN to run\n\nTry using tab to view the possible joint names'
+        self._names = names
+        self._action_list: List[Dict] = [{}]
+        self._callback = callback
+
+        self.do_help(None)
+
+    def do_help(self, arg: str):
+        print(self._helpMsg)
+
+    def do_ACT(self, arg: str): 
+        arg = arg.replace(', ', ' ')
+        arg = arg.replace(',', ' ')
+        words = arg.strip().split(' ')
+        if len(words) <= 1:
+            return
+        jointName = words[0]
+        if len(words) == 2:
+            floatAction = float(words[1].strip())
+        else:
+            floatAction = []
+            for word in words[1:]:
+                floatAction.append(float(word.strip()))
+            floatAction = np.array(floatAction)
+
+        self._action_list[-1][jointName] = floatAction
+    
+    def do_NEXT(self, arg: str):
+        if len(self._action_list[-1]) == 0:
+            print("THE LAST TIMESTEP IS EMPTY YET, NO NEW TIMESTEP BEING ADDED")
+        else:
+            self._action_list.append({})
+            print(f"ADDING A NEW TIMESTEP, NOW TIMESTEP {len(self._action_list)}")
+
+    def do_RUN(self, arg: str):
+        if len(self._action_list[-1]) == 0:
+            self._action_list.pop()
+        if len(self._action_list) == 0:
+            print('WARN: no action to be renderred')
+            return
+        self._callback(self._action_list)
+        exit(0)
+
+    def complete_ACT(self, text: str, line: str, start_index, end_index):
+        if text: 
+            return [name for name in self._names if name.startswith(text)]
+        else:
+            return self._names
 
 
 def _visualize_new_frame(
@@ -123,7 +196,11 @@ def main(path:str, animate:bool=True, nogui:bool=False):
     robot = Robot.load(path)
     if not nogui:
         if animate:
-            show_dynamic_robot(robot,) #TODO
+            p = ActionParser(
+                names    = list(robot.joint_map.keys()),
+                callback = lambda actionsList : show_dynamic_robot(robot, actionsList)
+            )
+            p.cmdloop()
         else:
             show_static_robot(robot)
     else:
@@ -131,6 +208,14 @@ def main(path:str, animate:bool=True, nogui:bool=False):
         for mesh in cFk:
             assert mesh.has_triangles(), f"{mesh} has no triangles"
             print(mesh)
+
+def test_cmd():
+    robot = Robot.load('tests/data/ur5/ur5.urdf')
+    def debug_cmd(args):
+        for row in args: 
+            print(row)
+    p = ActionParser(names = list(robot.joint_map.keys()), callback = debug_cmd)
+    p.cmdloop()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
