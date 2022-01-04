@@ -48,7 +48,7 @@ else
 		[[ $eachpath == /home* ]] && inner=$(realpath --relative-to="$HOME" "$eachpath") && maps="${maps} -v ${eachpath}:/root/${inner}"
 	done
 fi
-echo -e "\033[34mExecuting\033[0m nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash"
-container=`nvidia-docker run $maps -dit $DEV_IMAGE /bin/bash`
+echo -e "\033[34mExecuting\033[0m nvidia-docker run \n\t-v /etc/localtime:/etc/localtime:ro \n\t-v /tmp/.X11-unix/:/tmp/.X11-unix \n\t-e DISPLAY=unix$DISPLAY \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \\\n\t$maps -dit $DEV_IMAGE /bin/bash"
+container=`nvidia-docker run -v /etc/localtime:/etc/localtime:ro -v /tmp/.X11-unix/:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY -e GDK_SCALE -e GDK_DPI_SCALE $maps -dit $DEV_IMAGE docker /bin/bash`
 echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background."
 echo -e "You can attach to it using this hash\033[0m"
