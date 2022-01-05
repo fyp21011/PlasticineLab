@@ -67,15 +67,18 @@ class Animator(cmd.Cmd):
         self._visualizer = None
         if len(path2Action) != 0:
             self.do_LOAD(path2Action)
-        self.do_help(None)
+            self.do_RUN(None)
+            self.do_EXIT(None)
+        else:
+            self.do_help(None)
 
     def do_RESET(self, arg: str) -> None:
         """ Reset the FK after an action sequence is run
         """
         if self._visualizer:
+            self._visualizer.clear_gemoetries()
             self._visualizer.destroy_window()
         self._visualizer = o3d.visualization.Visualizer()
-        self._robot.link_fk()
         self._currentPose = None
         self._cursor = 0
     
@@ -146,6 +149,7 @@ class Animator(cmd.Cmd):
                 raise ValueError(f'The loaded action_list expected to be a list, but a {type(self._action_list)} received')
             if len(self._action_list) == 0:
                 raise ValueError(f'Empty action file {path}')
+            self._action_list.insert(0, None)
 
     def do_RUN(self, arg: str):
         """ Run the action sequence from the current cursor
@@ -279,4 +283,4 @@ if __name__ == '__main__':
 
     if args.nogui and args.a:
         raise argparse.ArgumentError(noGui, "no gui cannot be set when -a (animation) is given")
-    main(args.path, args.animation, args.nogui, args.actions)
+    main(args.path, args.animation or len(args.actions) != 0, args.nogui, args.actions)

@@ -572,63 +572,6 @@ class Robot(URDFType):
         tree.write(file_obj, pretty_print=True,
                    xml_declaration=True, encoding='utf-8')
 
-    def join(self, other: "Robot", link, origin=None, name=None, prefix=''):
-        """Join another Robot to this one by rigidly fixturing the two at a link.
-
-        Parameters
-        ----------
-        other : :class:.`Robot`
-            Another URDF to fuze to this one.
-        link : :class:`.Link` or str
-            The link of this Robot to which the other Robot's base link will be attached.
-        origin : (4,4) float, optional
-            The location in this URDF's link frame to attach the base link of the other
-            URDF at.
-        name : str, optional
-            A name for the new URDF.
-        prefix : str, optional
-            If specified, all joints and links from the (other) mesh will be pre-fixed
-            with this value to avoid name clashes.
-
-        Returns
-        -------
-        :class:`.Robot`
-            The merging result.
-        """
-        myself = self.copy()
-        other = other.copy(prefix=prefix)
-
-        # Validate
-        link_names = set(myself.link_map.keys())
-        other_link_names = set(other.link_map.keys())
-        if len(link_names.intersection(other_link_names)) > 0:
-            raise ValueError('Cannot merge two URDFs with shared link names')
-
-        joint_names = set(myself.joint_map.keys())
-        other_joint_names = set(other.joint_map.keys())
-        if len(joint_names.intersection(other_joint_names)) > 0:
-            raise ValueError('Cannot merge two URDFs with shared joint names')
-
-        links = myself.links + other.links
-        joints = myself.joints + other.joints
-        transmissions = myself.transmissions + other.transmissions
-        materials = myself.materials + other.materials
-
-        if name is None:
-            name = self.name
-
-        # Create joint that links the two rigidly
-        joints.append(Joint(
-            name='{}_join_{}{}_joint'.format(self.name, prefix, other.name),
-            joint_type='fixed',
-            parent=link if isinstance(link, str) else link.name,
-            child=other.base_link.name,
-            origin=origin
-        ))
-
-        return Robot(name=name, links=links, joints=joints, transmissions=transmissions,
-                    materials=materials)
-
     def _merge_materials(self):
         """Merge the top-level material set with the link materials.
 
