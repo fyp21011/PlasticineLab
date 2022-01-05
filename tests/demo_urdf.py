@@ -67,6 +67,7 @@ class Animator(cmd.Cmd):
         self._visualizer = None
         if len(path2Action) != 0:
             self.do_LOAD(path2Action)
+            self.do_RESET(None)
             self.do_RUN(None)
             self.do_EXIT(None)
         else:
@@ -76,7 +77,7 @@ class Animator(cmd.Cmd):
         """ Reset the FK after an action sequence is run
         """
         if self._visualizer:
-            self._visualizer.clear_gemoetries()
+            self._visualizer.clear_geometries()
             self._visualizer.destroy_window()
         self._visualizer = o3d.visualization.Visualizer()
         self._currentPose = None
@@ -84,10 +85,10 @@ class Animator(cmd.Cmd):
     
     @property
     def prompt(self) -> str:
-        self.do_RESET(None)
         return f"cursor @ {self._cursor} > "
 
     def preloop(self) -> None:
+        self.do_RESET(None)
         return super().preloop()
 
     def do_help(self, arg: str):
@@ -149,14 +150,13 @@ class Animator(cmd.Cmd):
                 raise ValueError(f'The loaded action_list expected to be a list, but a {type(self._action_list)} received')
             if len(self._action_list) == 0:
                 raise ValueError(f'Empty action file {path}')
-            self._action_list.insert(0, None)
 
     def do_RUN(self, arg: str):
         """ Run the action sequence from the current cursor
         """
         while self._cursor < len(self._action_list):
             self._render_current_actions()
-        self._visualizer.close()
+        self.do_RESET(None)
 
     def do_ACT(self, arg: str): 
         """ Callback to the ACT [joint name] [values...] command
@@ -243,10 +243,11 @@ def main(path:str, animate:bool=True, nogui:bool=False, path4PickleLoad: str = '
     robot = Robot.load(path)
     if not nogui:
         if animate:
-            Animator(
+            a = Animator(
                 robot       = robot,
                 path2Action = path4PickleLoad
-            ).cmdloop()
+            )
+            a.cmdloop()
         else:
             show_static_robot(robot)
     else:
