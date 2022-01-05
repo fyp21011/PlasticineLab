@@ -14,7 +14,8 @@
             "args": [
                 "tests/data/ur5/ur5.urdf", 
                 "-a"
-            ]
+            ], 
+            "justMyCode": false
         }
     ]
 }

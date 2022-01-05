@@ -22,21 +22,20 @@ import os
 import pickle
 import random
 import time
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Dict, List
 import numpy as np
 
 import open3d as o3d
 
 from plb.urdfpy import Robot
-from plb.urdfpy.link import Link
 from plb.urdfpy.manipulation import FK_CFG_Type
 
-FRAME_RATE = 1
+FRAME_RATE = 1/24
 MESH_TYPE = o3d.geometry.TriangleMesh
 VISUALIZER_TYPE = o3d.visualization.Visualizer
 
 
-class ActionParser(cmd.Cmd):
+class Animator(cmd.Cmd):
     """ Parser the user's input to get the actions for the demo robot
 
     * LOAD [path]
@@ -54,27 +53,32 @@ class ActionParser(cmd.Cmd):
 
     Parameters
     ----------
-    names: a list of joints' names, which will used for tab auto-completion
-    callback: the method to be invoked when the parsed action sequenced is
-        expected to be executed, receiving two actions: actionDict, state
-    initialState: the initial state for callback
+    names: a list of joints' names, which will used for tab auto-completionk
     path2Action: file storing the action sequences
     """
-    def __init__(self, names: List[str], callback: Callable[[Dict, Dict], Dict], initialState: Dict = None, path2Action: str = '') -> None:
+    def __init__(self, robot: Robot, path2Action: str = '') -> None:
         cmd.Cmd.__init__(self)
 
-        self._names = names
+        self._names = list(robot.joint_map.keys())
+        self._robot = robot
         self._action_list: List[Dict] = [{}]
-        self._callback = callback
-        self._currentState = initialState
+        self._currentPose = None
         self._cursor = 0
+        self._visualizer = None
         if len(path2Action) != 0:
             self.do_LOAD(path2Action)
         self.do_help(None)
-
+    
     @property
-    def promote(self) -> str:
-        return f"CURSOR @ {self._cursor} >"
+    def prompt(self) -> str:
+        return f"cursor @ {self._cursor} > "
+
+    def preloop(self) -> None:
+        if self._visualizer is not None:
+            self._visualizer.clear_geometries()
+        else:
+            self._visualizer = o3d.visualization.Visualizer()
+        return super().preloop()
 
     def do_help(self, arg: str):
         print("Usage: ")
@@ -93,7 +97,28 @@ class ActionParser(cmd.Cmd):
 
         The "current" action is defined as the one pointed by self._cursor
         """
-        self._currentState = self._callback(self._action_list[self._cursor], self._currentState)
+        if self._currentPose is None:
+            self._currentPose = {}
+            self._visualizer.create_window()
+        linkFk = self._robot.link_fk(cfg = self._action_list[self._cursor], cfgType = FK_CFG_Type.velocity)
+        for link in linkFk:
+            if link.collision_mesh is None:
+                continue
+            if link.name not in self._currentPose:
+                cm = link.collision_mesh
+                self._visualizer.add_geometry(cm)
+            else:
+                cm, oldPose = self._currentPose[link.name]
+                cm.transform(np.linalg.inv(oldPose))
+            pose = linkFk[link]
+            cm.transform(pose)
+            self._currentPose[link.name] = (cm, pose)
+            cm.compute_vertex_normals()
+            self._visualizer.update_geometry(cm)
+        self._visualizer.poll_events()
+        self._visualizer.update_renderer()
+        self._cursor += 1
+        time.sleep(FRAME_RATE)
 
     def do_LOAD(self, path: str):
         if not os.path.exists(path):
@@ -110,7 +135,6 @@ class ActionParser(cmd.Cmd):
     def do_RUN(self, arg: str):
         while self._cursor < len(self._action_list):
             self._render_current_actions()
-            self._cursor += 1
         self._action_list.append({})
 
     def do_ACT(self, arg: str): 
@@ -132,7 +156,6 @@ class ActionParser(cmd.Cmd):
     
     def do_NEXT(self, arg: str):
         self._render_current_actions()
-        self._cursor += 1
         if len(self._action_list) == self._cursor:
             self._action_list.append({})
 
@@ -152,59 +175,6 @@ class ActionParser(cmd.Cmd):
             return [name for name in self._names if name.startswith(text)]
         else:
             return self._names
-
-
-def _visualize_new_frame(
-    vis:       VISUALIZER_TYPE,
-    linkFk:    Dict[Link, Any],
-    lastPoses: Union[None, Dict[str, Tuple[MESH_TYPE, np.ndarray]]] = None
-) -> Dict[str, Tuple[MESH_TYPE, np.ndarray]]:
-    """ Update the visualizer for a new frame
-
-    Parameters
-    ----------
-    vis: the visualizer
-    linkFk: the forward kinematics result of the current frame
-    lastPoses: the returned value of THIS method at the previous
-        frame. Set to None if this is the first frame.
-
-    Returns
-    -------
-    Mapping from link names to the mesh that is currently
-    renderred by the visualizer, together with its poses
-    """
-    if lastPoses is None:
-        lastPoses = {}
-    for link in linkFk:
-        if link.collision_mesh is None:
-            continue
-        if link.name not in lastPoses:
-            cm = link.collision_mesh
-            vis.add_geometry(cm)
-        else:
-            cm, oldPose = lastPoses[link.name]
-            cm.transform(np.linalg.inv(oldPose))
-        pose = linkFk[link]
-        cm.transform(pose)
-        lastPoses[link.name] = (cm, pose)
-        cm.compute_vertex_normals()
-        vis.update_geometry(cm)
-    vis.poll_events()
-    vis.update_renderer()
-    return lastPoses
-
-def render_robot_animation(robot: Robot, visualizer: VISUALIZER_TYPE, actions: Dict[str, Any], currentPose: Dict[str, Any]):
-    currentPose = _visualize_new_frame(
-        visualizer, 
-        robot.link_fk(
-            cfg     = actions,
-            cfgType = FK_CFG_Type.velocity
-        ),
-        lastPoses = currentPose
-    )
-    time.sleep(FRAME_RATE)
-    return currentPose
-
 
 def show_static_robot(robot: Robot) -> None:
     """ Visualize a robot statically using random pose
@@ -232,19 +202,9 @@ def main(path:str, animate:bool=True, nogui:bool=False, path4PickleLoad: str = '
     robot = Robot.load(path)
     if not nogui:
         if animate:
-            # init
-            visualizer = o3d.visualization.Visualizer()
-            visualizer.create_window()
-            currentPose = _visualize_new_frame(
-                visualizer,
-                robot.link_fk()
-            )
-            # run
-            ActionParser(
-                names        = list(robot.joint_map.keys()),
-                callback     = render_robot_animation, 
-                initialState = currentPose, 
-                path2Action  = path4PickleLoad
+            Animator(
+                robot       = robot,
+                path2Action = path4PickleLoad
             ).cmdloop()
         else:
             show_static_robot(robot)
@@ -282,4 +242,4 @@ if __name__ == '__main__':
 
     if args.nogui and args.a:
         raise argparse.ArgumentError(noGui, "no gui cannot be set when -a (animation) is given")
-    main(args.path, args.a, args.nogui, args.actions)
+    main(args.path, args.animation, args.nogui, args.actions)
