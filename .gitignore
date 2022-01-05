@@ -1,9 +1,7 @@
 *.jpg
 *.png
-data
 *.avi
 *feh_*
-*.pkl
 *__pycache__*
 *tmp*
 *.idea
