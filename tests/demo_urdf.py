@@ -68,16 +68,23 @@ class Animator(cmd.Cmd):
         if len(path2Action) != 0:
             self.do_LOAD(path2Action)
         self.do_help(None)
+
+    def do_RESET(self, arg: str) -> None:
+        """ Reset the FK after an action sequence is run
+        """
+        if self._visualizer:
+            self._visualizer.destroy_window()
+        self._visualizer = o3d.visualization.Visualizer()
+        self._robot.link_fk()
+        self._currentPose = None
+        self._cursor = 0
     
     @property
     def prompt(self) -> str:
+        self.do_RESET(None)
         return f"cursor @ {self._cursor} > "
 
     def preloop(self) -> None:
-        if self._visualizer is not None:
-            self._visualizer.clear_geometries()
-        else:
-            self._visualizer = o3d.visualization.Visualizer()
         return super().preloop()
 
     def do_help(self, arg: str):
@@ -121,6 +128,14 @@ class Animator(cmd.Cmd):
         time.sleep(FRAME_RATE)
 
     def do_LOAD(self, path: str):
+        """ Callback for LOAD [path] command
+
+        Load an action sequence pickle file
+
+        Parameter
+        ---------
+        path: the commandline argument, specifying the file path
+        """
         if not os.path.exists(path):
             print(f"NO SUCH FILE: {path}")
         else:
@@ -133,11 +148,23 @@ class Animator(cmd.Cmd):
                 raise ValueError(f'Empty action file {path}')
 
     def do_RUN(self, arg: str):
+        """ Run the action sequence from the current cursor
+        """
         while self._cursor < len(self._action_list):
             self._render_current_actions()
-        self._action_list.append({})
+        self._visualizer.close()
 
     def do_ACT(self, arg: str): 
+        """ Callback to the ACT [joint name] [values...] command
+
+        Add a joint-name to velocities pair to the current timestep
+
+        Parameter
+        ---------
+        arg: the text argument, in form of joint-name, values...
+            If there is only one value, the value will be parsed
+            to float; otherwise, a numpy array
+        """
         arg = arg.replace(', ', ' ')
         arg = arg.replace(',', ' ')
         words = arg.strip().split(' ')
@@ -155,11 +182,19 @@ class Animator(cmd.Cmd):
         self._action_list[self._cursor][jointName] = floatAction
     
     def do_NEXT(self, arg: str):
+        """ Render ONE frame and forward the cursor
+        """
         self._render_current_actions()
         if len(self._action_list) == self._cursor:
             self._action_list.append({})
 
     def do_SAVE(self, arg: str):
+        """ Save the current action sequence into a pickle file
+
+        Parameter
+        ---------
+        arg: where the sequence is expected to be saved 
+        """
         if arg:
             if len(self._action_list[-1]) == 0:
                 self._action_list.pop()
@@ -171,6 +206,8 @@ class Animator(cmd.Cmd):
         exit(0)
 
     def complete_ACT(self, text: str, line: str, start_index, end_index):
+        """ Tab auto-completion for robot's joint name
+        """
         if text: 
             return [name for name in self._names if name.startswith(text)]
         else:
