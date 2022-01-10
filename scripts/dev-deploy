@@ -44,8 +44,8 @@ else
 	maps=""
 	for eachpath in $paths
 	do
-		[[ $eachpath != /home* ]] && echo -e "\033[31mThe path must be absolute\033[0m"
-		[[ $eachpath == /home* ]] && inner=$(realpath --relative-to="$HOME" "$eachpath") && maps="${maps} -v ${eachpath}:/root/${inner}"
+		[[ $eachpath != /* ]] && echo -e "\033[31mThe path must be absolute\033[0m"
+		[[ $eachpath == /* ]] && inner=$(realpath --relative-to="$HOME" "$eachpath") && maps="${maps} -v ${eachpath}:/root/${inner}"
 	done
 fi
 echo -e "\033[34mExecuting\033[0m nvidia-docker run \n\t-v /etc/localtime:/etc/localtime:ro \n\t-v /tmp/.X11-unix/:/tmp/.X11-unix \n\t-e DISPLAY=unix$DISPLAY \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \\\n\t$maps -dit $DEV_IMAGE /bin/bash"
