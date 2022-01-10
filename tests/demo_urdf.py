@@ -30,88 +30,55 @@ import open3d as o3d
 from plb.urdfpy import Robot
 from plb.urdfpy.manipulation import FK_CFG_Type
 
-FRAME_RATE = 1/24
+FRAME_RATE = 24
 MESH_TYPE = o3d.geometry.TriangleMesh
 VISUALIZER_TYPE = o3d.visualization.Visualizer
 
 
 class Animator(cmd.Cmd):
     """ Parser the user's input to get the actions for the demo robot
-
     * LOAD [path]
         load a pre-saved action sequence from `path`
-    * ACT [joint_name] [values ...]
-        add an action for a specified joint at the current timestep;
-        use TAB to find the joint
-    * NEXT
-        proceed the current actions, and move to the next timestep
     * RUN
         run all through all the timesteps to make an animation
-    * SAVE [path]
-        save the entire action sequence to `path`
     * EXIT
 
     Parameters
     ----------
-    names: a list of joints' names, which will used for tab auto-completionk
-    path2Action: file storing the action sequences
+    robot: the URDF loaded robot
     """
-    def __init__(self, robot: Robot, path2Action: str = '') -> None:
+    def __init__(self, robot: Robot) -> None:
+
         cmd.Cmd.__init__(self)
-
-        self._names = list(robot.joint_map.keys())
         self._robot = robot
-        self._action_list: List[Dict] = [{}]
+        self._action_list: List[Dict] = []
         self._currentPose = None
-        self._cursor = 0
-        self._visualizer = None
-        if len(path2Action) != 0:
-            self.do_LOAD(path2Action)
-            self.do_RESET(None)
-            self.do_RUN(None)
-            self.do_EXIT(None)
-        else:
-            self.do_help(None)
-
-    def do_RESET(self, arg: str) -> None:
-        """ Reset the FK after an action sequence is run
-        """
-        if self._visualizer:
-            self._visualizer.clear_geometries()
-            self._visualizer.destroy_window()
         self._visualizer = o3d.visualization.Visualizer()
-        self._currentPose = None
         self._cursor = 0
-    
-    @property
-    def prompt(self) -> str:
-        return f"cursor @ {self._cursor} > "
-
-    def preloop(self) -> None:
-        self.do_RESET(None)
-        return super().preloop()
+        self._smoothedVelocity: Dict[str, float] = {}
 
     def do_help(self, arg: str):
         print("Usage: ")
-        print("* LOAD [path]\n\tload a pre-saved action sequence from `path`")
-        print("* ACT [joint_name] [values ...]\n\tadd action for a specified joint at the current timestep; use TAB to find the joint")
-        print("* NEXT\n\tproceed the current action, and move to the next timestep")
-        print("* RUN\n\trun all through all the timesteps to make an animation")
-        print("* SAVE [path]\n\tsave the entire action sequence to path")
-        print("* EXIT")
+        print("* load [path]\n\tload a pre-saved action sequence from `path`")
+        print("* run\n\trun all through all the timesteps to make an animation")
+        print("* exit")
 
-    def do_HELP(self, arg: str):
-        return self.do_help(arg)
-
-    def _render_current_actions(self):
+    def _render_current_actions(self, currentActions: Dict):
         """ Render the current action
 
         The "current" action is defined as the one pointed by self._cursor
         """
-        if self._currentPose is None:
+        if self._cursor == 0:
             self._currentPose = {}
             self._visualizer.create_window()
-        linkFk = self._robot.link_fk(cfg = self._action_list[self._cursor], cfgType = FK_CFG_Type.velocity)
+        self._smoothedVelocity = {
+            key: (currentActions[key] * 3 + self._smoothedVelocity.get(key, 0)) / 4
+            for key in currentActions
+        }
+        linkFk = self._robot.link_fk(
+            cfg = self._smoothedVelocity,
+            cfgType = FK_CFG_Type.velocity if self._cursor > 0 else FK_CFG_Type.angle
+        )
         for link in linkFk:
             if link.collision_mesh is None:
                 continue
@@ -128,10 +95,26 @@ class Animator(cmd.Cmd):
             self._visualizer.update_geometry(cm)
         self._visualizer.poll_events()
         self._visualizer.update_renderer()
-        self._cursor += 1
-        time.sleep(FRAME_RATE)
 
-    def do_LOAD(self, path: str):
+    def do_run(self, args: str):
+        print("use ctrl-c to shut the animation")
+        n = len(self._action_list)
+        if n <= 0:
+            print("no actions loaded")
+            return
+        try: 
+            while True:
+                currentSec = self._cursor // FRAME_RATE
+                print(f'renderring {currentSec}s', end = '\r')
+                actions = self._action_list[currentSec % n]
+                self._render_current_actions(actions)
+                self._cursor += 1
+                time.sleep(1 / FRAME_RATE)
+        except KeyboardInterrupt:
+            print('renderring has been finished')
+            return
+
+    def do_load(self, path: str):
         """ Callback for LOAD [path] command
 
         Load an action sequence pickle file
@@ -144,78 +127,17 @@ class Animator(cmd.Cmd):
             print(f"NO SUCH FILE: {path}")
         else:
             with open(path, 'rb') as f:
-                self._action_list = pickle.load(f)
-            print(f'ACTIONS LOADED')
-            if not isinstance(self._action_list, list):
-                raise ValueError(f'The loaded action_list expected to be a list, but a {type(self._action_list)} received')
+                newActions = pickle.load(f)
+                print(f'ACTIONS LOADED')
+                if not isinstance(newActions, list):
+                    raise ValueError(f'The loaded action_list expected to be a list, but a {type(self._action_list)} received')
+                self._action_list.extend(newActions)
             if len(self._action_list) == 0:
                 raise ValueError(f'Empty action file {path}')
-
-    def do_RUN(self, arg: str):
-        """ Run the action sequence from the current cursor
-        """
-        while self._cursor < len(self._action_list):
-            self._render_current_actions()
-        self.do_RESET(None)
-
-    def do_ACT(self, arg: str): 
-        """ Callback to the ACT [joint name] [values...] command
-
-        Add a joint-name to velocities pair to the current timestep
-
-        Parameter
-        ---------
-        arg: the text argument, in form of joint-name, values...
-            If there is only one value, the value will be parsed
-            to float; otherwise, a numpy array
-        """
-        arg = arg.replace(', ', ' ')
-        arg = arg.replace(',', ' ')
-        words = arg.strip().split(' ')
-        if len(words) <= 1:
-            return
-        jointName = words[0]
-        if len(words) == 2:
-            floatAction = float(words[1].strip())
-        else:
-            floatAction = []
-            for word in words[1:]:
-                floatAction.append(float(word.strip()))
-            floatAction = np.array(floatAction)
-
-        self._action_list[self._cursor][jointName] = floatAction
     
-    def do_NEXT(self, arg: str):
-        """ Render ONE frame and forward the cursor
-        """
-        self._render_current_actions()
-        if len(self._action_list) == self._cursor:
-            self._action_list.append({})
-
-    def do_SAVE(self, arg: str):
-        """ Save the current action sequence into a pickle file
-
-        Parameter
-        ---------
-        arg: where the sequence is expected to be saved 
-        """
-        if arg:
-            if len(self._action_list[-1]) == 0:
-                self._action_list.pop()
-            with open(arg, 'wb') as f:
-                pickle.dump(self._action_list, f)
-                print(f'the current action list is saved into {f}')
-    
-    def do_EXIT(self, arg: str): 
+    def do_exit(self, arg: str): 
         exit(0)
 
-    def complete_ACT(self, text: str, line: str, start_index, end_index):
-        """ Tab auto-completion for robot's joint name
-        """
-        if text: 
-            return [name for name in self._names if name.startswith(text)]
-        else:
-            return self._names
 
 def show_static_robot(robot: Robot) -> None:
     """ Visualize a robot statically using random pose
@@ -239,15 +161,11 @@ def show_static_robot(robot: Robot) -> None:
     o3d.visualization.draw_geometries(meshes)
 
 
-def main(path:str, animate:bool=True, nogui:bool=False, path4PickleLoad: str = ''):
+def main(path:str, animate:bool=True, nogui:bool=False):
     robot = Robot.load(path)
     if not nogui:
         if animate:
-            a = Animator(
-                robot       = robot,
-                path2Action = path4PickleLoad
-            )
-            a.cmdloop()
+            Animator(robot).cmdloop()
         else:
             show_static_robot(robot)
     else:
@@ -269,12 +187,6 @@ if __name__ == '__main__':
         action='store_true',
         help='Visualize robot animation'
     )
-    parser.add_argument(
-        '--actions',
-        type=str,
-        help='path to actions file',
-        default=''
-    )
     noGui = parser.add_argument(
         '--nogui',
         action='store_true',
@@ -282,6 +194,6 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    if args.nogui and args.a:
+    if args.nogui and args.animation:
         raise argparse.ArgumentError(noGui, "no gui cannot be set when -a (animation) is given")
-    main(args.path, args.animation or len(args.actions) != 0, args.nogui, args.actions)
+    main(args.path, args.animation, args.nogui)
