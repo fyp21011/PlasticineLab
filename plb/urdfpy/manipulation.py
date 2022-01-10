@@ -410,7 +410,7 @@ class Robot(URDFType):
                     if mimic_joint in joint_cfg:
                         cfg = self._current_cfg[mimic_joint]
                         cfg = joint.mimic.multiplier * cfg + joint.mimic.offset
-                elif joint in joint_cfg:
+                elif joint in joint_cfg and self._current_cfg[joint] != 0:
                     cfg = self._current_cfg[joint]
                 pose = joint.get_child_pose(cfg).dot(pose)
 
