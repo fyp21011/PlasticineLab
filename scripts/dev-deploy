@@ -15,15 +15,12 @@ if [ -n "$CACHE_CONTAINER" ]; then
 	echo -e "1) Use the cached one \033[34m[DEFAULT]\033[0m"
 	echo    "2) Re-build the image and run a new container anyway"
 	read -p "1 or 2? "
-	if [ $REPLY == '1' ]; then
+	if [ $REPLY == '2' ]; then
+		docker container rm ${CACHE_CONTAINER:0:12}
+	else
 		container=`docker start ${CACHE_CONTAINER:0:12}`
 		echo -e "\033[34mThe container has been started at \033[0m${container}\033[34m in the background."
 		echo -e "You can attach to it using this hash\033[0m"
-		exit
-	elif [ $REPLY == '2' ]; then
-		docker container rm ${CACHE_CONTAINER:0:12}
-	else
-		echo -e "\033[33mInvalid reply: $REPLY\033[0m"
 		exit
 	fi
 fi
@@ -48,7 +45,20 @@ else
 		[[ $eachpath == /* ]] && inner=$(realpath --relative-to="$HOME" "$eachpath") && maps="${maps} -v ${eachpath}:/root/${inner}"
 	done
 fi
-echo -e "\033[34mExecuting\033[0m nvidia-docker run \n\t-v /etc/localtime:/etc/localtime:ro \n\t-v /tmp/.X11-unix/:/tmp/.X11-unix \n\t-e DISPLAY=unix$DISPLAY \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \\\n\t$maps -dit $DEV_IMAGE /bin/bash"
-container=`nvidia-docker run -v /etc/localtime:/etc/localtime:ro -v /tmp/.X11-unix/:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY -e GDK_SCALE -e GDK_DPI_SCALE $maps -dit $DEV_IMAGE /bin/bash`
-echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background."
-echo -e "You can attach to it using this hash\033[0m"
+
+echo -e "\033[33mWhere to display? \033[0m"
+echo -e "1) Monitor \033[34m[DEFAULT]\033[0m"
+echo    "2) X11 forwarding"
+read -p "1 or 2? "
+
+if [ $REPLY == '2' ]; then
+    echo -e "\033[34mExecuting\033[0m nvidia-docker run \n\t-dit \n\t-v /etc/localtime:/etc/localtime:ro \n\t$maps \n\t-v /tmp/.X11-unix:/tmp/.X11-unix:rw \n\t-v $HOME/.Xauthority:/root/.Xauthority:rw \n\t--network=host \n\t--privileged \n\t-e DISPLAY=:10.0 \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \n\t$DEV_IMAGE /bin/bash"
+	container=`nvidia-docker run -dit -v /etc/localtime:/etc/localtime:ro $maps -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v $HOME/.Xauthority:/root/.Xauthority:rw --network=host --privileged -e DISPLAY=:10.0 -e GDK_SCALE -e GDK_DPI_SCALE $DEV_IMAGE /bin/bash`
+	echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background."
+	echo -e "You can attach to it using this hash\033[0m"
+else
+	echo -e "\033[34mExecuting\033[0m nvidia-docker run \n\t-v /etc/localtime:/etc/localtime:ro \n\t-v /tmp/.X11-unix/:/tmp/.X11-unix \n\t-e DISPLAY=unix$DISPLAY \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \\\n\t$maps -dit $DEV_IMAGE /bin/bash"
+	container=`nvidia-docker run -v /etc/localtime:/etc/localtime:ro -v /tmp/.X11-unix/:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY -e GDK_SCALE -e GDK_DPI_SCALE $maps -dit $DEV_IMAGE /bin/bash`
+	echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background."
+	echo -e "You can attach to it using this hash\033[0m"
+fi
