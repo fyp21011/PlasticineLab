@@ -75,7 +75,8 @@ class Animator(cmd.Cmd):
             linkFk = self._robot.link_fk(cfg = currentActions, cfgType = FK_CFG_Type.angle)
         else:
             self._smoothedVelocity = {
-                key: (currentActions[key] * (3 / FRAME_RATE) + self._smoothedVelocity.get(key, 0)) / 4
+                # key: (currentActions[key] * (3 / FRAME_RATE) + self._smoothedVelocity.get(key, 0)) / 4
+                key: (currentActions[key] / FRAME_RATE)
                 for key in currentActions
             }
             linkFk = self._robot.link_fk(cfg = self._smoothedVelocity, cfgType = FK_CFG_Type.velocity)
@@ -105,12 +106,12 @@ class Animator(cmd.Cmd):
         try:
             while True:
                 currentSec = self._cursor // FRAME_RATE
-                initState  = currentSec % FRAME_RATE == 0
+                initState  = currentSec % n == 0
                 print(f'renderring {currentSec}s', end = '\r')
                 actions = self._action_list[currentSec % n]
                 self._render_current_actions(actions, isReset=initState)
                 self._cursor += FRAME_RATE if initState else 1
-                time.sleep(1 / FRAME_RATE / 10)
+                time.sleep(1 / FRAME_RATE)
         except KeyboardInterrupt:
             print('renderring has been finished')
             return
