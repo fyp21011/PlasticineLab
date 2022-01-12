@@ -86,15 +86,6 @@ def test_urdfpy(tmpdir):
     assert len(u.links) == len(nu.links)
     assert len(u.joints) == len(nu.joints)
 
-    # Test join
-    with pytest.raises(ValueError):
-        x = u.join(u, link=u.link_map['tool0'])
-    x = u.join(u, link=u.link_map['tool0'], name='copy', prefix='prefix')
-    assert isinstance(x, Robot)
-    assert x.name == 'copy'
-    assert len(x.joints) == 2 * len(u.joints) + 1
-    assert len(x.links) == 2 * len(u.links)
-
     # Test scale
     x = u.copy(scale=3)
     assert isinstance(x, Robot)
