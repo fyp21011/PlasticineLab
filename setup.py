@@ -13,7 +13,10 @@ install_requires = [
     'baselines',
     'pandas',
     'seaborn',
-    'imageio'
+    'imageio',
+    'open3d',
+    'lxml',
+    'networkx'
 ]
 
 setup(name='plb',
