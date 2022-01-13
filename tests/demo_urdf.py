@@ -75,8 +75,8 @@ class Animator(cmd.Cmd):
             linkFk = self._robot.link_fk(cfg = currentActions, cfgType = FK_CFG_Type.angle)
         else:
             self._smoothedVelocity = {
-                # key: (currentActions[key] * (3 / FRAME_RATE) + self._smoothedVelocity.get(key, 0)) / 4
-                key: (currentActions[key] / FRAME_RATE)
+                key: (currentActions[key] * (3 / FRAME_RATE) + self._smoothedVelocity.get(key, 0)) / 4
+                # key: (currentActions[key] / FRAME_RATE)
                 for key in currentActions
             }
             linkFk = self._robot.link_fk(cfg = self._smoothedVelocity, cfgType = FK_CFG_Type.velocity)

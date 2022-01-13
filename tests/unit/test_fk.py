@@ -8,7 +8,7 @@ from plb.urdfpy import Robot
 from plb.urdfpy.link import Link
 from plb.urdfpy.manipulation import FK_CFG_Type
 
-DEBUG = True
+DEBUG = False
 
 def _validate_actions(relativeSeq: List[Dict[str, float]], absoluteSeq:List[Dict[str, float]]) -> None: 
     assert len(relativeSeq) == len(absoluteSeq), \
