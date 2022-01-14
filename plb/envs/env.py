@@ -3,9 +3,12 @@ from gym.spaces import Box
 import os
 import yaml
 import numpy as np
+
+from plb.engine.primitive.primive_base import Primitive
 from ..config import load
 from yacs.config import CfgNode
 from .utils import merge_lists
+from ..urdfpy import Robot
 
 PATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -15,6 +18,7 @@ class PlasticineEnv(gym.Env):
         from ..engine.taichi_env import TaichiEnv
         self.cfg_path = cfg_path
         cfg = self.load_varaints(cfg_path, version)
+        # TODO: put the robot's primitives into the CFG
         self.taichi_env = TaichiEnv(cfg, nn)  # build taichi environment
         self.taichi_env.initialize()
         self.cfg = cfg.ENV
@@ -58,6 +62,27 @@ class PlasticineEnv(gym.Env):
 
     def render(self, mode='human'):
         return self.taichi_env.render(mode)
+
+    def _load_robot(self, cfg: CfgNode):
+        """ Load an articulated robot into the env
+
+        Retrieve the robot's links from the environment
+        and insert them as the primitives into the Env
+
+        Params
+        ------
+        cfg: the YAML CfgNode, whose ROBOT element, if exists,
+            will be understood as a path to the URDF file describing
+            the expected 
+        """
+        if 'ROBOT' in cfg:
+            self._robot = Robot.load(cfg.ROBOT)
+            self._link2primitive = {}
+            for link in self._robot.link_map.keys(): 
+                # TODO: retrieve the primitives from the link
+                linkPrimitive = Primitive() #TODO
+                self._link2primitive[link.name] = linkPrimitive
+                self.taichi_env.primitives.primitives.append(linkPrimitive)
 
     @classmethod
     def load_varaints(self, cfg_path, version):
