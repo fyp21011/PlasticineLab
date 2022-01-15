@@ -235,7 +235,7 @@ class Robot(URDFType):
         self._other_xml = value
 
     @property
-    def actuated_joints(self):
+    def actuated_joints(self) -> List[Joint]:
         """list of :class:`.Joint` : The joints that are independently
         actuated.
 
@@ -545,32 +545,6 @@ class Robot(URDFType):
             materials=[v.copy(prefix, scale) for v in self.materials],
             other_xml=self.other_xml
         )
-
-    def save(self, file_obj):
-        """Save this URDF to a file.
-
-        Parameters
-        ----------
-        file_obj : str or file-like object
-            The file to save the URDF to. Should be the path to the
-            ``.urdf`` XML file. Any paths in the URDF should be specified
-            as relative paths to the ``.urdf`` file instead of as ROS
-            resources.
-
-        Returns
-        -------
-        urdf : :class:`.URDF`
-            The parsed URDF.
-        """
-        if isinstance(file_obj, six.string_types):
-            path, _ = os.path.split(file_obj)
-        else:
-            path, _ = os.path.split(os.path.realpath(file_obj.name))
-
-        node = self._to_xml(None, path)
-        tree = ET.ElementTree(node)
-        tree.write(file_obj, pretty_print=True,
-                   xml_declaration=True, encoding='utf-8')
 
     def _merge_materials(self):
         """Merge the top-level material set with the link materials.
