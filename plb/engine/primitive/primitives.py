@@ -1,9 +1,12 @@
+import os
 import taichi as ti
 import numpy as np
 import yaml
-from .primive_base import Primitive
 from yacs.config import CfgNode as CN
+
+from .primive_base import Primitive
 from .utils import qrot, qmul, w2quat
+from ...urdfpy import Robot
 
 @ti.func
 def length(x):
@@ -261,22 +264,47 @@ class Box(Primitive):
 
 class Primitives:
     def __init__(self, cfgs, max_timesteps=1024):
-        outs = []
         self.primitives = []
-        for i in cfgs:
-            if isinstance(i, CN):
-                cfg = i
-            else:
-                cfg = CN(new_allowed=True)
-                cfg = cfg._load_cfg_from_yaml_str(yaml.safe_dump(i))
-            outs.append(cfg)
-
         self.action_dims = [0]
-        for i in outs:
-            primitive = eval(i.shape)(cfg=i, max_timesteps=max_timesteps)
+
+        outs = (
+            each if isinstance(each, CN) else CN(new_allowed=True)._load_cfg_from_yaml_str(yaml.safe_dump(each))
+            for each in cfgs
+        )
+        for eachOutCfg in outs:
+            if 'ROBOT' in eachOutCfg:
+                self._add_robot(eachOutCfg)
+            primitive = eval(eachOutCfg.shape)(cfg=eachOutCfg, max_timesteps=max_timesteps)
             self.primitives.append(primitive)
             self.action_dims.append(self.action_dims[-1] + primitive.action_dim)
         self.n = len(self.primitives)
+
+    def _add_robot(self, cfg: CN):
+        """ Load an articulated robot into the env
+
+        Retrieve the robot's links from the environment
+        and insert them as the primitives into the Env
+
+        Params
+        ------
+        cfg: the YAML CfgNode, whose ROBOT element, if exists,
+            will be understood as a path to the URDF file describing
+            the expected 
+        """
+        assert cfg.ROBOT != None and isinstance(cfg.ROBOT, str), \
+            f"invalid ROBOT configuration in {cfg}"
+        assert os.path.exists(cfg.ROBOT), \
+            f"no such robot @ {cfg}"
+        self._robot = Robot.load(cfg.ROBOT)
+        self._link2primitive = {}
+        for link in self._robot.link_map.keys(): 
+            # TODO: retrieve the primitives from the link
+            linkPrimitive = Primitive() #TODO
+            self._link2primitive[link.name] = linkPrimitive
+            self.primitives.append(linkPrimitive)
+        for joint in self._robot.actuated_joints:
+            self.action_dims.append(self.action_dims[-1] + joint.action_dim)
+
 
     @property
     def action_dim(self):
