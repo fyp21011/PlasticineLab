@@ -1,12 +1,10 @@
-import os
-import taichi as ti
 import numpy as np
-import yaml
-from yacs.config import CfgNode as CN
+import taichi as ti
 
-from .primive_base import Primitive
-from .utils import qrot, qmul, w2quat
-from ...urdfpy import Robot
+
+from plb.engine.primitive.primive_base import Primitive
+from plb.engine.primitive.utils import qrot, qmul, w2quat
+
 
 @ti.func
 def length(x):
@@ -259,98 +257,5 @@ class Box(Primitive):
         cfg.size = (0.1, 0.1, 0.1)
         return cfg
 
-
-
-
-class Primitives:
-    def __init__(self, cfgs, max_timesteps=1024):
-        self.primitives = []
-        self.action_dims = [0]
-
-        outs = (
-            each if isinstance(each, CN) else CN(new_allowed=True)._load_cfg_from_yaml_str(yaml.safe_dump(each))
-            for each in cfgs
-        )
-        for eachOutCfg in outs:
-            if 'ROBOT' in eachOutCfg:
-                self._add_robot(eachOutCfg)
-            primitive = eval(eachOutCfg.shape)(cfg=eachOutCfg, max_timesteps=max_timesteps)
-            self.primitives.append(primitive)
-            self.action_dims.append(self.action_dims[-1] + primitive.action_dim)
-        self.n = len(self.primitives)
-
-    def _add_robot(self, cfg: CN):
-        """ Load an articulated robot into the env
-
-        Retrieve the robot's links from the environment
-        and insert them as the primitives into the Env
-
-        Params
-        ------
-        cfg: the YAML CfgNode, whose ROBOT element, if exists,
-            will be understood as a path to the URDF file describing
-            the expected 
-        """
-        assert cfg.ROBOT != None and isinstance(cfg.ROBOT, str), \
-            f"invalid ROBOT configuration in {cfg}"
-        assert os.path.exists(cfg.ROBOT), \
-            f"no such robot @ {cfg}"
-        self._robot = Robot.load(cfg.ROBOT)
-        self._link2primitive = {}
-        for link in self._robot.link_map.keys(): 
-            # TODO: retrieve the primitives from the link
-            linkPrimitive = Primitive() #TODO
-            self._link2primitive[link.name] = linkPrimitive
-            self.primitives.append(linkPrimitive)
-        for joint in self._robot.actuated_joints:
-            self.action_dims.append(self.action_dims[-1] + joint.action_dim)
-
-
-    @property
-    def action_dim(self):
-        return self.action_dims[-1]
-
-    @property
-    def state_dim(self):
-        return sum([i.state_dim for i in self.primitives])
-
-    def set_action(self, s, n_substeps, action):
-        action = np.asarray(action).reshape(-1).clip(-1, 1)
-        assert len(action) == self.action_dims[-1]
-        for i in range(self.n):
-            self.primitives[i].set_action(s, n_substeps, action[self.action_dims[i]:self.action_dims[i+1]])
-
-    def get_grad(self, n):
-        grads = []
-        for i in range(self.n):
-            grad = self.primitives[i].get_action_grad(0, n)
-            if grad is not None:
-                grads.append(grad)
-        return np.concatenate(grads, axis=1)
-
-    def get_step_grad(self,n):
-        grads = []
-        for i in range(self.n):
-            grad = self.primitives[i].get_step_action_grad(n)
-            if grad is not None:
-                grads.append(grad)
-        return np.concatenate(grads,axis=0)
-
-    def set_softness(self, softness=666.):
-        for i in self.primitives:
-            i.softness[None] = softness
-
-    def get_softness(self):
-        return self.primitives[0].softness[None]
-
-    def __getitem__(self, item):
-        if isinstance(item, tuple):
-            item = item[0]
-        return self.primitives[item]
-
-    def __len__(self):
-        return len(self.primitives)
-
-    def initialize(self):
-        for i in self.primitives:
-            i.initialize()
+                
+        
