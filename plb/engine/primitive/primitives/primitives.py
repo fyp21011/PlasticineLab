@@ -24,9 +24,10 @@ class Primitives:
         for eachOutCfg in outs:
             if 'ROBOT' in eachOutCfg:
                 robotList.append(eachOutCfg)
-            primitive = eval(eachOutCfg.shape)(cfg=eachOutCfg, max_timesteps=max_timesteps)
-            self.primitives.append(primitive)
-            self.action_dims.append(self.action_dims[-1] + primitive.action_dim)
+            else:
+                primitive = eval(eachOutCfg.shape)(cfg=eachOutCfg, max_timesteps=max_timesteps)
+                self.primitives.append(primitive)
+                self.action_dims.append(self.action_dims[-1] + primitive.action_dim)
         self.n = len(self.primitives)
         """ Number of the non-robot primitives"""
         self._robots = RobotsControllers()
