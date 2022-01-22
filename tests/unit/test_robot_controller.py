@@ -4,7 +4,7 @@ import numpy as np
 import taichi
 
 from plb.engine.primitive.primitives import RobotsControllers
-from plb.urdfpy import Robot, Link, FK_CFG_Type
+from plb.urdfpy import Robot, Link, FK_CFG_Type, Mesh
 
 taichi.init()
 
@@ -50,15 +50,22 @@ def test_single_robot():
     linkCnt = sum((
         1 for _ in rc.append_robot(robot)
     ))
-    assert linkCnt == len(robot.links),\
-        f"got {linkCnt} Primitives, but there are {len(robot.links)} in the RC"
+    truePrimitiveCnt = sum((
+        sum((1 for c in link.collisions if not isinstance(c.geometry.geometry, Mesh))) for link in robot.links
+    ))
+    assert linkCnt == truePrimitiveCnt,\
+        f"got {linkCnt} Primitives, but there are {truePrimitiveCnt} in the RC"
     assert 1 == len(rc.robots),\
         f"got {len(rc.robots)} robots in the RC, but expecting 1"
-    assert 1 == len(rc.link_2_primtive),\
-        f"got {len(rc.link_2_primtive)} link_2_primitive in the RC, but expecting 1"
-    for linkName in robot.link_map.keys():
-        assert linkName in rc.link_2_primtive[0],\
-            f"{linkName} of the loaded robot not in rc.link_2_primitive"
+    assert 1 == len(rc.link_2_primtives),\
+        f"got {len(rc.link_2_primtives)} link_2_primitive in the RC, but expecting 1"
+    for linkName, link in robot.link_map.items():
+        if any((
+            not isinstance(collision.geometry.geometry, Mesh)
+            for collision in link.collisions
+        )):
+            assert linkName in rc.link_2_primtives[0],\
+                f"{linkName} of the loaded robot not in rc.link_2_primitive"
 
     # test append action dims
     action_dims = [0]
@@ -105,18 +112,31 @@ def test_dual_robot():
     )) + sum ((
         1 for _ in rc.append_robot(robotB)
     ))
-    assert linkCnt == len(robotA.links) + len(robotB.links),\
-        f"got {linkCnt} Primitives, but there are {len(robotA.links) + len(robotB.links)} in the RC"
+    truePrimitiveCnt = sum((
+        sum((1 for c in link.collisions if not isinstance(c.geometry.geometry, Mesh))) for link in robotA.links
+    )) + sum((
+        sum((1 for c in link.collisions if not isinstance(c.geometry.geometry, Mesh))) for link in robotB.links
+    ))
+    assert linkCnt == truePrimitiveCnt,\
+        f"got {linkCnt} Primitives, but there are {truePrimitiveCnt} in the RC"
     assert 2 == len(rc.robots),\
         f"got {len(rc.robots)} robots in the RC, but expecting 2"
-    assert 2 == len(rc.link_2_primtive),\
-        f"got {len(rc.link_2_primtive)} link_2_primitive in the RC, but expecting 2"
-    for linkName in robotA.link_map.keys():
-        assert linkName in rc.link_2_primtive[0],\
-            f"{linkName} of the loaded robot not in rc.link_2_primitive"
-    for linkName in robotB.link_map.keys():
-        assert linkName in rc.link_2_primtive[1],\
-            f"{linkName} of the loaded robot not in rc.link_2_primitive"
+    assert 2 == len(rc.link_2_primtives),\
+        f"got {len(rc.link_2_primtives)} link_2_primitive in the RC, but expecting 2"
+    for linkName, link in robotA.link_map.items():
+        if any((
+            not isinstance(collision.geometry.geometry, Mesh)
+            for collision in link.collisions
+        )):
+            assert linkName in rc.link_2_primtives[0],\
+                f"{linkName} of the loaded robot not in rc.link_2_primitive"
+    for linkName, link in robotB.link_map.items():
+        if any((
+            not isinstance(collision.geometry.geometry, Mesh)
+            for collision in link.collisions
+        )):
+            assert linkName in rc.link_2_primtives[1],\
+                f"{linkName} of the loaded robot not in rc.link_2_primitive"
 
     action_dims = [0]
     robotActionDim = sum((

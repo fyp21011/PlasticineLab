@@ -1,17 +1,40 @@
-from typing import List, Dict, Generator
+from typing import List, Dict, Generator, Union
+import warnings
 
+from yacs.config import CfgNode as CN
 import numpy as np
 
+from plb.engine.primitive.primitives.shapes import Box, Cylinder, Sphere
 from plb.engine.primitive.primive_base import Primitive
-from plb.urdfpy import Robot, FK_CFG_Type
+from plb.urdfpy import Robot, FK_CFG_Type, matrix_to_xyz_rpy
+
+ROBOT_LINK_DOF = 7
+ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
+ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
+
+def _generate_primitive_config(rawPose: np.ndarray, shapeName: str, **kwargs) -> CN:
+    position = matrix_to_xyz_rpy(rawPose)
+    actionCN = CN(init_dict={'dim': ROBOT_LINK_DOF, 'scale': f'{ROBOT_LINK_DOF_SCALE}'})
+    configDict = {
+        'action': actionCN, 
+        'color':  ROBOT_COLLISION_COLOR, 
+        'init_pos': f'({position[0]}, {position[1]}, {position[2]})',
+        'init_rot': f'({1.0}, {0.1}, {0.1}, {0.1})',
+        'shape': shapeName,
+    }
+    for key, value in kwargs.items():
+        if isinstance(value, CN): configDict[key] = value
+        else:                     configDict[key] = str(value)
+    return CN(init_dict=configDict)
+
 
 class RobotsControllers:
     """ A controller for tracking URDF loaded robots' actions
     """
     def __init__(self) -> None:
-        self.robots: List[Robot]                         = []
-        self.link_2_primtive: List[Dict[str, Primitive]] = []
-        self.robot_action_dims: List[int]                = []
+        self.robots: List[Robot] = []
+        self.robot_action_dims: List[int] = []
+        self.link_2_primtives: List[Dict[str, List[Primitive]]] = []
 
     def append_robot(self, robot: Robot, offset: np.ndarray = None) -> Generator[Primitive, None, None]:
         """ Append a new URDF-loaded robot to the controller
@@ -31,11 +54,39 @@ class RobotsControllers:
             joint.action_dim
             for joint in robot.actuated_joints
         ))
-        self.link_2_primtive.append({})
-        for linkName in robot.link_map.keys():
-            linkPrimitive = Primitive()
-            self.link_2_primtive[-1][linkName] = linkPrimitive
-            yield linkPrimitive #TODO: create primitive & offsets
+        self.link_2_primtives.append({})
+        initPose = robot.link_fk(use_names=True)
+        for linkName, link in robot.link_map.items():
+            for collision in link.collisions:
+                if collision.geometry.box is not None:
+                    linkPrimitive = Box(cfg = _generate_primitive_config(
+                        rawPose   = initPose[linkName], 
+                        shapeName = 'Box',
+                        size      = tuple(collision.geometry.box.size)
+                    ))
+                elif collision.geometry.sphere is not None:
+                    linkPrimitive = Sphere(cfg = _generate_primitive_config(
+                        rawPose   = initPose[linkName],
+                        shapeName = 'Sphere',
+                        radius    = collision.geometry.sphere.radius
+                    ))
+                elif collision.geometry.cylinder is not None:
+                    linkPrimitive = Cylinder(cfg = _generate_primitive_config(
+                        rawPose   = initPose[linkName],
+                        shapeName = 'Cylinder',
+                        r         = collision.geometry.cylinder.radius,
+                        h         = collision.geometry.cylinder.length
+                    ))
+                else:
+                    warnings.warn(f"Not supported type: {type(collision.geometry.geometry)}")
+                    linkPrimitive = None
+
+                if linkPrimitive is not None:
+                    if linkName not in self.link_2_primtives:
+                        self.link_2_primtives[-1][linkName] = [linkPrimitive]
+                    else:
+                        self.link_2_primtives[-1].append(linkPrimitive)
+                    yield linkPrimitive
     
     def append_action_dims(self, actionDims: List[int]): 
         """ Append the robots' action spaces to the actionDims list
