@@ -155,7 +155,7 @@ class Robot(URDFType):
         return copy.copy(self._links)
 
     @property
-    def link_map(self):
+    def link_map(self) -> Dict[str, Link]:
         """dict : Map from link names to the links themselves.
 
         This returns a copy of the link map which cannot be edited
