@@ -171,5 +171,3 @@ def test_dual_robot():
         if linkName in poseB:
             assert np.all(np.isclose(poseA[linkName], poseB[linkName], rtol=1e-3)), \
                 f"Incorrect FK for {linkName}, expecting {poseB[linkName]}, got {poseA[linkName]}"
-
-    

@@ -1,15 +1,17 @@
 import os
-from typing import Dict, Generator, List
+from typing import List
 
 import numpy as np
 import taichi as ti
 import yaml
 from yacs.config import CfgNode as CN
 
-
+from plb.config.utils import make_cls_config
 from plb.engine.primitive.primive_base import Primitive
-from plb.engine.primitive.primitives.robot_fk import RobotsControllers
 from plb.urdfpy import Robot
+
+from .robot_fk import RobotsControllers
+from .shapes import Sphere, Capsule, RollingPin, Chopsticks, Cylinder, Box
 
 class Primitives:
     def __init__(self, cfgs, max_timesteps=1024):
@@ -22,7 +24,7 @@ class Primitives:
         )
         robotList = []
         for eachOutCfg in outs:
-            if 'ROBOT' in eachOutCfg:
+            if eachOutCfg.shape == 'Robot':
                 robotList.append(eachOutCfg)
             else:
                 primitive = eval(eachOutCfg.shape)(cfg=eachOutCfg, max_timesteps=max_timesteps)
@@ -47,12 +49,13 @@ class Primitives:
             will be understood as a path to the URDF file describing
             the expected 
         """
-        assert cfg.ROBOT != None and isinstance(cfg.ROBOT.PATH, str), \
+        robotCfg = make_cls_config(self._robots, cfg)
+        assert isinstance(robotCfg.path, str), \
             f"invalid ROBOT configuration in {cfg}"
-        assert os.path.exists(cfg.ROBOT.PATH), \
-            f"no such robot @ {cfg}"
-        newRobot = Robot.load(cfg.ROBOT.PATH)
-        robotPos = np.genfromtxt(cfg.ROBOT.OFFSET)
+        assert os.path.exists(robotCfg.path), \
+            f"no such robot @ {robotCfg}"
+        newRobot = Robot.load(robotCfg.path)
+        robotPos = robotCfg.offset
         for robotPrimitive in self._robots.append_robot(newRobot, robotPos):
             self.primitives.append(robotPrimitive)
 

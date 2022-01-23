@@ -53,6 +53,14 @@ class RobotsControllers:
         self.robot_action_dims: List[int] = []
         self.link_2_primtives: List[Dict[str, List[Primitive]]] = []
 
+    @classmethod
+    def default_config(cls):
+        cfg = CN()
+        cfg.shape = 'Robot'
+        cfg.path = ''
+        cfg.offset = (0.0, 0.0, 0.0)
+        return cfg
+
     def append_robot(self, robot: Robot, offset_: np.ndarray = np.zeros(3)) -> Generator[Primitive, None, None]:
         """ Append a new URDF-loaded robot to the controller
 
