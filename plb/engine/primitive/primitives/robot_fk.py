@@ -13,6 +13,23 @@ ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
 ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
 
 def _generate_primitive_config(rawPose: np.ndarray, offset: np.ndarray, shapeName: str, **kwargs) -> CN:
+    """ Generate a CfgNode for primitive mapping
+
+    Based on the URDF's primtives, generate the configuration for PLB's
+    primitives, to establish the mapping in between
+
+    Params
+    ------
+    rawPose: the pose matrix of primitive's initial position
+    offset: the offset of the robot to which the primitve belongs
+    shapeName: 'Sphere', 'Cylinder' or 'Box'
+    **kwargs: other primitive-type specific parameters, such as
+        the `size` description for `Box`, `r` and `h` for cylinders
+    
+    Return
+    ------
+    A CfgNode for the PLB's primitive instantiation
+    """
     position = matrix_to_xyz_rpy(rawPose)
     actionCN = CN(init_dict={'dim': ROBOT_LINK_DOF, 'scale': f'{ROBOT_LINK_DOF_SCALE}'})
     configDict = {
