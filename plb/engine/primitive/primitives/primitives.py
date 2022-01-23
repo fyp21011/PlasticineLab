@@ -33,7 +33,7 @@ class Primitives:
         self._robots = RobotsControllers()
         for eachRobotConfig in robotList:
             self._add_robot(eachRobotConfig)
-        self._robots.append_action_dims(self.action_dims)
+        self._robots.export_action_dims(to = self.action_dims)
 
     def _add_robot(self, cfg: CN):
         """ Load an articulated robot into the env

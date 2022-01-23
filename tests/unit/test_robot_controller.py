@@ -72,12 +72,12 @@ def test_single_robot():
     robotActionDim = sum((
         joint.action_dim for joint in robot.actuated_joints
     ))
-    rc.append_action_dims(action_dims)
+    rc.export_action_dims(action_dims)
     assert len(action_dims) == 2,\
         f"after appending robot's action dims, the action_dims become {action_dims},"+\
         f" but expecting [0, {robotActionDim}]"
     action_dims = [0,3,6,9] # pretending there are 3 3-DoF primitives already
-    rc.append_action_dims(action_dims)
+    rc.export_action_dims(action_dims)
     assert len(action_dims) == 5,\
         f"after appending robot's action dims, the action_dims become {action_dims},"+\
         f" but expecting [0, 3, 6, 9, {robotActionDim}]"
@@ -142,13 +142,13 @@ def test_dual_robot():
     robotActionDim = sum((
         joint.action_dim for joint in robotA.actuated_joints
     ))
-    rc.append_action_dims(action_dims)
+    rc.export_action_dims(action_dims)
     assert len(action_dims) == 3 and \
         action_dims[1] - action_dims[0] == action_dims[2] - action_dims[1] == robotActionDim,\
         f"after appending robot's action dims, the action_dims become {action_dims},"+\
         f" but expecting [0, {robotActionDim, robotActionDim}]"
     action_dims = [0,3,6,9] # pretending there are 3 3-DoF primitives already
-    rc.append_action_dims(action_dims)
+    rc.export_action_dims(action_dims)
     assert len(action_dims) == 6 and \
         action_dims[5] - action_dims[4] == action_dims[4] - action_dims[3] == robotActionDim,\
         f"after appending robot's action dims, the action_dims become {action_dims},"+\

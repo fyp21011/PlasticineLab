@@ -12,13 +12,13 @@ ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
 ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
 
-def _generate_primitive_config(rawPose: np.ndarray, shapeName: str, **kwargs) -> CN:
+def _generate_primitive_config(rawPose: np.ndarray, offset: np.ndarray, shapeName: str, **kwargs) -> CN:
     position = matrix_to_xyz_rpy(rawPose)
     actionCN = CN(init_dict={'dim': ROBOT_LINK_DOF, 'scale': f'{ROBOT_LINK_DOF_SCALE}'})
     configDict = {
         'action': actionCN, 
         'color':  ROBOT_COLLISION_COLOR, 
-        'init_pos': f'({position[0]}, {position[1]}, {position[2]})',
+        'init_pos': f'({position[0] + offset[0]}, {position[1] + offset[1]}, {position[2] + offset[2]})',
         'init_rot': f'({1.0}, {0.1}, {0.1}, {0.1})',
         'shape': shapeName,
     }
@@ -36,7 +36,7 @@ class RobotsControllers:
         self.robot_action_dims: List[int] = []
         self.link_2_primtives: List[Dict[str, List[Primitive]]] = []
 
-    def append_robot(self, robot: Robot, offset: np.ndarray = None) -> Generator[Primitive, None, None]:
+    def append_robot(self, robot: Robot, offset_: np.ndarray = np.zeros(3)) -> Generator[Primitive, None, None]:
         """ Append a new URDF-loaded robot to the controller
 
         Params
@@ -61,18 +61,21 @@ class RobotsControllers:
                 if collision.geometry.box is not None:
                     linkPrimitive = Box(cfg = _generate_primitive_config(
                         rawPose   = initPose[linkName], 
+                        offset    = offset_,
                         shapeName = 'Box',
                         size      = tuple(collision.geometry.box.size)
                     ))
                 elif collision.geometry.sphere is not None:
                     linkPrimitive = Sphere(cfg = _generate_primitive_config(
                         rawPose   = initPose[linkName],
+                        offset    = offset_,
                         shapeName = 'Sphere',
                         radius    = collision.geometry.sphere.radius
                     ))
                 elif collision.geometry.cylinder is not None:
                     linkPrimitive = Cylinder(cfg = _generate_primitive_config(
                         rawPose   = initPose[linkName],
+                        offset    = offset_,
                         shapeName = 'Cylinder',
                         r         = collision.geometry.cylinder.radius,
                         h         = collision.geometry.cylinder.length
@@ -88,7 +91,7 @@ class RobotsControllers:
                         self.link_2_primtives[-1].append(linkPrimitive)
                     yield linkPrimitive
     
-    def append_action_dims(self, actionDims: List[int]): 
+    def export_action_dims(self, to: List[int] = [0]): 
         """ Append the robots' action spaces to the actionDims list
 
         For example, plb.engine.primitive.Primitives maintains an action_dims list
@@ -100,15 +103,16 @@ class RobotsControllers:
 
         Params
         ------
-        actionDims: the `action_dims` in `plb.engine.primitive.Primitives` where
+        to: the `action_dims` in `plb.engine.primitive.Primitives` where
             the numbers of action dimensions of robots in this controller will
             be appended.
         """
         if not self.robots:
             return # no robots, so no effect on actionDims
-        assert len(actionDims) > 0, "Cannot append to empty action dims list"
+        assert len(to) > 0, "Cannot append to empty action dims list"
         for dims in self.robot_action_dims:
-            actionDims.append(actionDims[-1] + dims)
+            to.append(to[-1] + dims)
+        return to
 
     @staticmethod
     def _deflatten_robot_actions(robot: Robot, robotActions: np.ndarray) -> List:
