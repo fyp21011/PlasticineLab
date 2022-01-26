@@ -1,6 +1,5 @@
 from typing import Dict, List, Union
 import warnings
-from importlib_metadata import requires
 
 from pytorch3d import transforms
 import torch
@@ -41,7 +40,16 @@ def _xyz_rpy_2_matrix(xyzrpy: torch.Tensor) -> torch.Tensor:
     """
     translation = xyzrpy[:3].reshape((3,1)) # X-Y-Z (3,1)
     eularAngle  = xyzrpy[3:] # R-P-Y (3,)
-    rot3by3 = transforms.euler_angles_to_matrix(eularAngle, "XYZ")
+
+    c3, c2, c1 = torch.cos(eularAngle)
+    s3, s2, s1 = torch.sin(eularAngle)
+
+    rot3by3 = torch.stack((
+        c1 * c2, (c1 * s2 * s3) - (c3 * s1), (s1 * s3) + (c1 * c3 * s2),
+        c2 * s1, (c1 * c3) + (s1 * s2 * s3), (c3 * s1 * s2) - (c1 * s3),
+        -s2,     c2 * s3,                    c2 * c3
+    )).reshape((3,-1))
+
     return torch.cat((
         torch.cat((rot3by3, translation), dim = 1),
         Variable(torch.Tensor([[0, 0, 0, 1]]), requires_grad=True)
@@ -66,7 +74,7 @@ def _translation_2_matrix(translation: torch.Tensor) -> torch.Tensor:
     ```
     """
     return torch.cat((
-        torch.cat((torch.eye(3, requires_grad=True), translation), dim = 1),
+        torch.cat((torch.eye(3, requires_grad=True), translation.reshape((3, -1))), dim = 1),
         Variable(torch.Tensor([[0, 0, 0, 1]]), requires_grad=True)
     ), dim = 0)
 
