@@ -1,18 +1,19 @@
-from typing import List, Dict, Generator, Union
+from typing import Iterable, List, Dict, Generator, Union
 import warnings
 
+import torch
 from yacs.config import CfgNode as CN
-import numpy as np
 
 from plb.engine.primitive.primitives.shapes import Box, Cylinder, Sphere
 from plb.engine.primitive.primive_base import Primitive
-from plb.urdfpy import Robot, FK_CFG_Type, matrix_to_xyz_rpy
+from plb.urdfpy import Robot, matrix_to_xyz_rpy
+from plb.urdfpy.diff_fk import DiffRobot
 
 ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
 ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
 
-def _generate_primitive_config(rawPose: np.ndarray, offset: np.ndarray, shapeName: str, **kwargs) -> CN:
+def _generate_primitive_config(rawPose: Iterable[float], offset:Iterable[float], shapeName: str, **kwargs) -> CN:
     """ Generate a CfgNode for primitive mapping
 
     Based on the URDF's primtives, generate the configuration for PLB's
@@ -49,7 +50,7 @@ class RobotsControllers:
     """ A controller for tracking URDF loaded robots' actions
     """
     def __init__(self) -> None:
-        self.robots: List[Robot] = []
+        self.robots: List[DiffRobot] = []
         self.robot_action_dims: List[int] = []
         self.link_2_primtives: List[Dict[str, List[Primitive]]] = []
 
@@ -61,7 +62,7 @@ class RobotsControllers:
         cfg.offset = (0.0, 0.0, 0.0)
         return cfg
 
-    def append_robot(self, robot: Robot, offset_: np.ndarray = np.zeros(3)) -> Generator[Primitive, None, None]:
+    def append_robot(self, robot: DiffRobot, offset_: Iterable[float] = torch.zeros(3)) -> Generator[Primitive, None, None]:
         """ Append a new URDF-loaded robot to the controller
 
         Params
@@ -140,7 +141,7 @@ class RobotsControllers:
         return to
 
     @staticmethod
-    def _deflatten_robot_actions(robot: Robot, robotActions: np.ndarray) -> List:
+    def _deflatten_robot_actions(robot: Robot, robotActions: torch.Tensor) -> List:
         """ Deflatten a robot's action list according to its actuatable joints'
         action dimenstions. 
 
@@ -176,7 +177,7 @@ class RobotsControllers:
 
         return jointActions
     
-    def set_robot_actions(self, envActions: np.ndarray, primitiveCnt: int = 0):
+    def set_robot_actions(self, envActions: torch.Tensor, primitiveCnt: int = 0):
         """ Set the actions for the robot.
 
         Params
@@ -188,14 +189,18 @@ class RobotsControllers:
         totalActions = len(envActions)
         assert primitiveCnt <= totalActions
         dimCounter = primitiveCnt
-        for robot, actionDims in zip(self.robots, self.robot_action_dims):
+        for robot, actionDims, primitiveDict in zip(self.robots, self.robot_action_dims, self.link_2_primtives):
             jointVelocity = self._deflatten_robot_actions(
                 robot,
                 envActions[dimCounter : dimCounter + actionDims]
             )
             dimCounter += actionDims
-        linkPose = robot.link_fk(jointVelocity, cfgType=FK_CFG_Type.velocity)
-        #TODO: 
+            linkPose = robot.link_fk_diff(jointVelocity) # shape (LINK_CNT, 7)
+            for eachLink, rowIdx in robot.link_2_idx.items():
+                primitiveLst  = primitiveDict[eachLink.name]
+                commonActions = linkPose[rowIdx, :] #shape (7,)
+                for each in primitiveLst:
+                    each.set_action() #TODO: put the linkPose into simulator
 
     def get_robot_action_grad(self, s, n): 
         pass

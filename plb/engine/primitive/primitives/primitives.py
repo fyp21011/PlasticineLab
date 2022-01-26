@@ -9,6 +9,7 @@ from yacs.config import CfgNode as CN
 from plb.config.utils import make_cls_config
 from plb.engine.primitive.primive_base import Primitive
 from plb.urdfpy import Robot
+from plb.urdfpy.diff_fk import DiffRobot
 
 from .robot_fk import RobotsControllers
 from .shapes import Sphere, Capsule, RollingPin, Chopsticks, Cylinder, Box
@@ -54,7 +55,7 @@ class Primitives:
             f"invalid ROBOT configuration in {cfg}"
         assert os.path.exists(robotCfg.path), \
             f"no such robot @ {robotCfg}"
-        newRobot = Robot.load(robotCfg.path)
+        newRobot = DiffRobot.load(robotCfg.path)
         robotPos = robotCfg.offset
         for robotPrimitive in self._robots.append_robot(newRobot, robotPos):
             self.primitives.append(robotPrimitive)
