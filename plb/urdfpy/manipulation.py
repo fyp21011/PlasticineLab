@@ -2,7 +2,7 @@ from collections import OrderedDict
 import copy
 from enum import Enum
 import os
-from typing import Any, Dict, Iterable, List, Set, Union
+from typing import Dict, List, Set, Union
 
 from lxml import etree as ET
 import networkx as nx
@@ -64,14 +64,14 @@ class Robot(URDFType):
         self.other_xml = other_xml
 
         # No setters for these
-        self._links = list(links)
+        self._links: List[Link] = list(links)
         self._joints = list(joints)
         self._transmissions = list(transmissions)
         self._materials = list(materials)
 
         # Set up private helper maps from name to value
         self._link_map = {}
-        self._joint_map = {}
+        self._joint_map: Dict[str, Joint] = {}
         self._transmission_map = {}
         self._material_map = {}
         self._current_cfg: Union[None, Dict] = None
@@ -127,7 +127,7 @@ class Robot(URDFType):
             self._G, target=self._base_link
         )
 
-        self._actuated_joints = self._sort_joints(actuated_joints)
+        self._actuated_joints: List[Joint] = self._sort_joints(actuated_joints)
 
         # Cache the reverse topological order (useful for speeding up FK,
         # as we want to start at the base and work outward to cache
@@ -565,8 +565,8 @@ class Robot(URDFType):
                     self._materials.append(v.material)
                     self._material_map[v.material.name] = v.material
 
-    @staticmethod
-    def load(file_obj):
+    @classmethod
+    def load(cls, file_obj):
         """Load a URDF described robot from an XML file.
 
         Parameters
@@ -596,7 +596,7 @@ class Robot(URDFType):
             path, _ = os.path.split(file_obj.name)
 
         node = tree.getroot()
-        return Robot._from_xml(node, path)
+        return cls._from_xml(node, path)
 
     def _validate_joints(self):
         """Raise an exception of any joints are invalidly specified.
@@ -759,7 +759,7 @@ class Robot(URDFType):
 
         data = ET.tostring(extra_xml_node)
         kwargs['other_xml'] = data
-        return Robot(**kwargs)
+        return cls(**kwargs)
 
     def _to_xml(self, parent, path):
         node = self._unparse(path)
