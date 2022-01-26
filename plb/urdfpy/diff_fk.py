@@ -1,4 +1,4 @@
-from typing import Dict, List, Union
+from typing import Any, Callable, Dict, List, Union
 import warnings
 
 from pytorch3d import transforms
@@ -8,6 +8,24 @@ from plb.urdfpy import Robot, Joint, Link
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE = torch.device(DEVICE)
+
+
+def _tensor_creator(creator: Callable[[Any], torch.Tensor], *value, **kwargs) -> torch.Tensor:
+    """ Create tensor with argument: 
+        dtype = torch.float64
+        device = DEVICE
+        requires_grad = True
+
+    Params
+    ------
+    creator: the method to create a tensor, such as torch.tensor, torch.zeros,
+        torch.zeros_like, torch.ones, torch.ones_like, torch.eye, etc.
+    value: the arguments to the creator, except for the dtype, device and requires_grad
+    """
+    kwargs['device'] = DEVICE
+    kwargs['dtype'] = torch.float64
+    kwargs['requires_grad'] = True
+    return creator(*value, **kwargs)
 
 def _matrix_2_xyz_quat(matrix: torch.Tensor) -> torch.Tensor:
     """ Convert a (4, 4) matrix to a 6-dim XYZ-RPY transformation
@@ -51,7 +69,7 @@ def _xyz_rpy_2_matrix(xyzrpy: torch.Tensor) -> torch.Tensor:
 
     return torch.cat((
         torch.cat((rot3by3, translation), dim = 1),
-        torch.tensor([[0, 0, 0, 1]], dtype=torch.float64, device=DEVICE, requires_grad=True)
+        _tensor_creator(torch.tensor, [[0, 0, 0, 1]])
     ), dim = 0)
 
 def _translation_2_matrix(translation: torch.Tensor) -> torch.Tensor:
@@ -73,8 +91,8 @@ def _translation_2_matrix(translation: torch.Tensor) -> torch.Tensor:
     ```
     """
     return torch.cat((
-        torch.cat((torch.eye(3, requires_grad=True), translation.reshape((3, -1))), dim = 1),
-        torch.tensor([[0, 0, 0, 1]], dtype=torch.float64, device=DEVICE, requires_grad=True)
+        torch.cat((_tensor_creator(torch.eye, 3), translation.reshape((3, -1))), dim = 1),
+        _tensor_creator(torch.tensor, [[0, 0, 0, 1]])
     ), dim = 0)
 
 def _rotation_2_matrix(rotation: torch.Tensor) -> torch.Tensor:
@@ -95,8 +113,8 @@ def _rotation_2_matrix(rotation: torch.Tensor) -> torch.Tensor:
     ```
     """
     return torch.cat((
-        torch.cat((rotation, torch.zeros((3,1), device=DEVICE, requires_grad=True)), dim=1),
-        torch.tensor([[0, 0, 0, 1]], dtype=torch.float64, device=DEVICE, requires_grad=True)
+        torch.cat((rotation, _tensor_creator(torch.zeros, (3,1))), dim=1),
+        _tensor_creator(torch.tensor, [[0, 0, 0, 1]])
     ), dim = 0)
 
 class DiffRobot(Robot):
