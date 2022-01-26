@@ -16,7 +16,8 @@ install_requires = [
     'imageio',
     'open3d',
     'lxml',
-    'networkx'
+    'networkx',
+    'pytorch3d'
 ]
 
 setup(name='plb',
