@@ -3,7 +3,6 @@ import warnings
 
 from pytorch3d import transforms
 import torch
-from torch.autograd import Variable
 
 from plb.urdfpy import Robot, Joint, Link
 
@@ -52,7 +51,7 @@ def _xyz_rpy_2_matrix(xyzrpy: torch.Tensor) -> torch.Tensor:
 
     return torch.cat((
         torch.cat((rot3by3, translation), dim = 1),
-        Variable(torch.Tensor([[0, 0, 0, 1]]), requires_grad=True)
+        torch.tensor([[0, 0, 0, 1]], dtype=torch.float64, device=DEVICE, requires_grad=True)
     ), dim = 0)
 
 def _translation_2_matrix(translation: torch.Tensor) -> torch.Tensor:
@@ -75,7 +74,7 @@ def _translation_2_matrix(translation: torch.Tensor) -> torch.Tensor:
     """
     return torch.cat((
         torch.cat((torch.eye(3, requires_grad=True), translation.reshape((3, -1))), dim = 1),
-        Variable(torch.Tensor([[0, 0, 0, 1]]), requires_grad=True)
+        torch.tensor([[0, 0, 0, 1]], dtype=torch.float64, device=DEVICE, requires_grad=True)
     ), dim = 0)
 
 def _rotation_2_matrix(rotation: torch.Tensor) -> torch.Tensor:
@@ -96,8 +95,8 @@ def _rotation_2_matrix(rotation: torch.Tensor) -> torch.Tensor:
     ```
     """
     return torch.cat((
-        torch.cat((rotation, torch.zeros((3,1), requires_grad=True)), dim=1),
-        Variable(torch.Tensor([[0, 0, 0, 1]]), requires_grad=True)
+        torch.cat((rotation, torch.zeros((3,1), device=DEVICE, requires_grad=True)), dim=1),
+        torch.tensor([[0, 0, 0, 1]], dtype=torch.float64, device=DEVICE, requires_grad=True)
     ), dim = 0)
 
 class DiffRobot(Robot):
@@ -112,26 +111,26 @@ class DiffRobot(Robot):
         
         self.actuated_joint_2_idx: Dict[Joint, int] = {}
         """ A map from Joint to its index in the self._actuated_joints """
-        self.joint_pos: List[Variable] = []
+        self.joint_pos: List[torch.Tensor] = []
         """ The differentiable joints' origins """
-        self.joint_axis: List[Variable] = []
+        self.joint_axis: List[torch.Tensor] = []
         """ the differentiable joints' axes """
         # static origins and axes to differentiable variables
         for idx, joint in enumerate(self._actuated_joints): 
             self.joint_pos.append(
-                Variable(torch.Tensor(joint.origin, device=DEVICE), requires_grad=True)
+                torch.tensor(joint.origin, dtype=torch.float64, device=DEVICE, requires_grad=True)
             )
             self.joint_axis.append(
-                Variable(torch.Tensor(joint.axis, device=DEVICE), requires_grad=True)
+                torch.tensor(joint.axis, dtype=torch.float64, device=DEVICE, requires_grad=True)
             )
             self.actuated_joint_2_idx[joint] = idx
 
         self.link_2_idx = {link: idx for idx, link in enumerate(self._links)}
         """ A map from Link to its index in self._links """
-        _initPoses = sorted([(self.link_2_idx[link], pose4by4) for link, pose4by4 in self.link_fk()])
+        _initPoses = sorted([(self.link_2_idx[link], pose4by4) for link, pose4by4 in self.link_fk().items()])
         self.link_pos: List[List[torch.Tensor]] = [
             list(
-                _matrix_2_xyz_quat(Variable(torch.from_numpy(eachPose), requires_grad=True) )
+                _matrix_2_xyz_quat(torch.tensor(eachPose, device=DEVICE, requires_grad=True) )
                 for _, eachPose in _initPoses
             ) # time 0 poses
         ]
