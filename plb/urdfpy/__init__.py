@@ -18,6 +18,5 @@ __all__ = [
     'JointCalibration', 'JointDynamics', 'JointLimit', 'JointMimic',
     'SafetyController', 'Actuator', 'TransmissionJoint',
     'Transmission', 'Joint', 'Link', 'Robot', 'FK_CFG_Type', 'DiffRobot', 
-    'rpy_to_matrix', 'matrix_to_rpy', 'xyz_rpy_to_matrix', 'matrix_to_xyz_rpy',
-    '__version__'
+    'rpy_to_matrix', 'matrix_to_rpy', 'xyz_rpy_to_matrix', 'matrix_to_xyz_rpy'
 ]
