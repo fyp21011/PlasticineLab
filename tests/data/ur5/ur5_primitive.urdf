@@ -41,8 +41,7 @@
   <link name="base_link">
     <visual>
       <geometry>
-        <!-- <mesh filename="collision/base.stl"/> -->
-        <cylinder length="0.02" radius="0.075"/>
+        <mesh filename="collision/base.stl"/>
       </geometry>
       <material name="LightGrey">
         <color rgba="0.7 0.7 0.7 1.0"/>
@@ -50,7 +49,8 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="collision/base.stl"/>
+        <!-- <mesh filename="collision/base.stl"/> -->
+        <cylinder length="0.025" radius="0.075"/>
       </geometry>
     </collision>
     <inertial>
@@ -62,8 +62,8 @@
   <joint name="shoulder_pan_joint" type="revolute">
     <parent link="base_link"/>
     <child link="shoulder_link"/>
-    <!-- <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.089159"/> -->
-    <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.08"/>
+    <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.089159"/>
+    <!-- <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.08"/> -->
     <axis xyz="0 0 1"/>
     <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.15"/>
     <dynamics damping="0.0" friction="0.0"/>
@@ -71,8 +71,7 @@
   <link name="shoulder_link">
     <visual>
       <geometry>
-        <!-- <mesh filename="collision/shoulder.stl"/> -->
-        <cylinder length="0.13" radius="0.056"/>
+        <mesh filename="collision/shoulder.stl"/>
       </geometry>
       <material name="LightGrey">
         <color rgba="0.7 0.7 0.7 1.0"/>
@@ -80,7 +79,8 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="collision/shoulder.stl"/>
+        <!-- <mesh filename="collision/shoulder.stl"/> -->
+        <cylinder length="0.13" radius="0.056"/>
       </geometry>
     </collision>
     <inertial>
@@ -100,23 +100,22 @@
   <link name="upper_arm_link">
     <visual>
       <geometry>
-        <!-- <mesh filename="collision/upperarm.stl"/> -->
-        <cylinder length="0.53" radius="0.056"/>
+        <mesh filename="collision/upperarm.stl"/>
       </geometry>
-      <origin rpy="0 0 0" xyz="0.0 0.0 0.2"/>
       <material name="LightGrey">
         <color rgba="0.7 0.7 0.7 1.0"/>
       </material>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="collision/upperarm.stl"/>
+        <!-- <mesh filename="collision/upperarm.stl"/> -->
+        <cylinder length="0.53" radius="0.056"/>
       </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.2"/>
     </collision>
     <inertial>
       <mass value="8.393"/>
-      <!-- <origin rpy="0 0 0" xyz="0.0 0.0 0.28"/> -->
-      
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.28"/>
       <inertia ixx="0.22689067591" ixy="0.0" ixz="0.0" iyy="0.22689067591" iyz="0.0" izz="0.0151074"/>
     </inertial>
   </link>
@@ -131,18 +130,18 @@
   <link name="forearm_link">
     <visual>
       <geometry>
-        <!-- <mesh filename="collision/forearm.stl"/> -->
-        <cylinder length="0.47" radius="0.035"/>
+        <mesh filename="collision/forearm.stl"/>
       </geometry>
-      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.2"/>
       <material name="LightGrey">
         <color rgba="0.7 0.7 0.7 1.0"/>
       </material>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="collision/forearm.stl"/>
+        <!-- <mesh filename="collision/forearm.stl"/> -->
+        <cylinder length="0.47" radius="0.035"/>
       </geometry>
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.2"/>
     </collision>
     <inertial>
       <mass value="2.275"/>
@@ -161,18 +160,18 @@
   <link name="wrist_1_link">
     <visual>
       <geometry>
-        <!-- <mesh filename="collision/wrist1.stl"/> -->
-        <cylinder length="0.105" radius="0.035"/>
+        <mesh filename="collision/wrist1.stl"/>
       </geometry>
-      <origin rpy="0 0 0" xyz="0.0 0.095 0.0"/>
       <material name="LightGrey">
         <color rgba="0.7 0.7 0.7 1.0"/>
       </material>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="collision/wrist1.stl"/>
+        <!-- <mesh filename="collision/wrist1.stl"/> -->
+        <cylinder length="0.105" radius="0.035"/>
       </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.095 0.0"/>
     </collision>
     <inertial>
       <mass value="1.219"/>
@@ -191,18 +190,18 @@
   <link name="wrist_2_link">
     <visual>
       <geometry>
-        <!-- <mesh filename="collision/wrist2.stl"/> -->
-        <cylinder length="0.115" radius="0.035"/>
+        <mesh filename="collision/wrist2.stl"/>
       </geometry>
-      <origin rpy="1.57 0 0" xyz="0.0 0.0 0.095"/>
       <material name="LightGrey">
         <color rgba="0.7 0.7 0.7 1.0"/>
       </material>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="collision/wrist2.stl"/>
+        <!-- <mesh filename="collision/wrist2.stl"/> -->
+        <cylinder length="0.115" radius="0.035"/>
       </geometry>
+      <origin rpy="1.57 0 0" xyz="0.0 0.0 0.095"/>
     </collision>
     <inertial>
       <mass value="1.219"/>
@@ -221,18 +220,18 @@
   <link name="wrist_3_link">
     <visual>
       <geometry>
-        <!-- <mesh filename="collision/wrist3.stl"/> -->
-        <cylinder length="0.025" radius="0.036"/>
+        <mesh filename="collision/wrist3.stl"/>
       </geometry>
-      <origin rpy="1.57 0.0 0.0" xyz="0.0 0.06 0.0"/>
       <material name="LightGrey">
         <color rgba="0.7 0.7 0.7 1.0"/>
       </material>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="collision/wrist3.stl"/>
+        <!-- <mesh filename="collision/wrist3.stl"/> -->
+        <cylinder length="0.025" radius="0.036"/>
       </geometry>
+      <origin rpy="1.57 0.0 0.0" xyz="0.0 0.06 0.0"/>
     </collision>
     <inertial>
       <mass value="0.1879"/>
