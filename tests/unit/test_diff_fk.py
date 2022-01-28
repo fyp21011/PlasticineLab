@@ -1,3 +1,7 @@
+from os import times
+import pickle
+from typing import List, Dict
+
 import numpy as np
 from pytorch3d import transforms
 import torch
@@ -132,3 +136,60 @@ def test_diff_link():
                 f"backward from velocity {i} to pose {i}, {i-1}: pose{i} got NONE grad"
             assert diffLink.trajectory[i - 1].grad != None, \
                 f"backward from velocity {i} to pose {i}, {i-1}: pose{i-1} got NONE grad"
+
+def test_diff_robot():
+    robotDiff = DiffRobot.load('tests/data/ur5/ur5.urdf')
+    robotRaw  = robot.copy()
+
+    # first check the init_pose
+    fk = robotRaw.link_fk(use_names = True)
+    for linkName in robotRaw.link_map:
+        assert linkName in robotDiff._link_map, \
+            f"{linkName} NOT FOUND in diff robot"
+        diffLink = robotDiff._link_map[linkName]
+        assert isinstance(diffLink, DiffLink), \
+            f"{linkName} in diff robot is not type DiffLink, but {type(diffLink)}"
+        
+        translation = fk[linkName][:3, 3].reshape((3,))
+        translationDiff = diffLink.init_pose.detach()[:3].cpu().numpy()
+        assert np.allclose(translation, translationDiff, rtol=1e-3), \
+            f"Init XYZ of {linkName} in the raw robot:{translation} does not match that in the diff robot: {translationDiff}"
+        rotation = diffLink.init_pose.detach()[3:]
+        rotation = transforms.quaternion_to_matrix(rotation).cpu().numpy()
+        assert np.allclose(rotation, fk[linkName][:3,:3], rtol=1e-3), \
+            f"Init rotation of {linkName} in the raw robot:\n{fk[linkName][:3,:3]}\ndoes not match " + \
+            f"that in the diff robot:\n{rotation}"
+
+def test_diff_fk():
+    robotDiff = DiffRobot.load('tests/data/ur5/ur5.urdf')
+    # 1) load the action from the tests/data
+    with open('tests/data/ur5/action_swap.pkl', 'rb') as istream:
+        actions: List[Dict[str, float]] = pickle.load(istream)
+        assert len(actions) == 42, "ERROR in loading `tests/data/ur5/action_swap.pkl`"
+    
+    # 2) Apply the action to robotDiff
+    for eachAction in actions:
+        joinVelocities = []
+        for jointName in robotDiff.actuated_joint_names:
+            if jointName in eachAction:
+                joinVelocities.append(
+                    _tensor_creator(torch.tensor, eachAction[jointName])
+                )
+            else:
+                joinVelocities.append(
+                    _tensor_creator(torch.zeros, (robotDiff._joint_map[jointName].action_dim,))
+                )
+        assert len(joinVelocities) == len(robotDiff._actuated_joints)
+        linkVelCnt = sum(1 for _ in robotDiff.link_fk_diff(joinVelocities))
+        assert linkVelCnt == len(robotDiff._links), \
+            f"expecting {len(robotDiff._links)} link velocities, got {len(linkVelCnt[-1])}"
+
+    # 3) Tries to backpropagte along the time
+    for timeStep in range(41, 0, -1):
+        linkGrad = {
+            linkName: torch.ones((7,), device=DEVICE)
+            for linkName in robotDiff._link_map.keys()
+        }
+        for jointVelGrad in robotDiff.backward(timeStep, linkGrad):
+            assert jointVelGrad != None, f"NONE Gradient at time={timeStep}"         
+    

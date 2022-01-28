@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Generator, List, Set, Union
+from typing import Any, Callable, Dict, Generator, Iterable, List, Set, Union
 import warnings
 
 from pytorch3d import transforms
@@ -150,14 +150,26 @@ class DiffJoint:
         vel: the velocity to be applied, which MUST be of
             the same DoF as the wrapped joint's action_dim
         """
-        if not vel.shape and self._joint.action_dim != 1 \
-        or vel.shape[-1] != self._joint.action_dim:
+        velShape = vel.shape
+        if (not velShape and self._joint.action_dim != 1) \
+        or (velShape and velShape[-1] != self._joint.action_dim):
             raise ValueError(f"Joint: {self._joint.name} expects {self._joint.action_dim}"+\
                 f"-dim velocity, but got {vel.shape if vel.shape else 1}-d velocity")
+
+        # if self._joint.mimic is not None:
+        #     mimic_joint = self._joint._joint_map[self._joint.mimic.joint]
+        #     if mimic_joint in self._joint._actuated_joints:
+        #         jointAngle = mimic_joint.angle
+        #         jointAngle = self._joint.mimic.multiplier * jointAngle + self._joint.mimic.offset
+        # elif self._joint in self._joint._actuated_joints and self._joint.angle != 0:
+        #     jointAngle = self._joint.angle
+        # else:
+        #     jointAngle = None
+        
         self.angle = self.angle + vel * TIME_INTERVAL
         self.velocities.append(vel)
 
-    def get_child_pose(self) -> torch.Tensor:
+    def get_child_pose_diff(self) -> torch.Tensor:
         """ Differentiable version of `plb.urdfpy.Joint.get_child_pose`
 
         Return
@@ -170,20 +182,20 @@ class DiffJoint:
         elif self._joint.joint_type in ['revolute', 'continuous']:
             # angle = cfg[0], cfg.shape == (1,)
             rot3by3 = transforms.axis_angle_to_matrix(self.angle * self.diff_axis)
-            return self.diff_origin.dot(_rotation_2_matrix(rot3by3))
+            return self.diff_origin.mm(_rotation_2_matrix(rot3by3))
         elif self._joint.joint_type == 'prismatic':
             translation = torch.reshape(self.angle * self.diff_axis, (3,1))
-            return self.diff_origin.dot(_translation_2_matrix(translation))
+            return self.diff_origin.mm(_translation_2_matrix(translation))
         elif self._joint.joint_type == 'planar':
             if self.angle.shape != (2,):
                 raise ValueError(
                     '(2,) float configuration required for planar joints'
                 )
-            translation = torch.reshape(self.diff_origin[:3, :2].dot(self.angle),(3,1))
-            return self.diff_origin.dot(_translation_2_matrix(translation))
+            translation = torch.reshape(self.diff_origin[:3, :2].mm(self.angle),(3,1))
+            return self.diff_origin.mm(_translation_2_matrix(translation))
         elif self._joint.joint_type == 'floating':
             joint_action = _xyz_rpy_2_matrix(self.angle)
-            return self.diff_origin.dot(joint_action)
+            return self.diff_origin.mm(joint_action)
         else:
             raise ValueError('Invalid configuration')
 
@@ -195,17 +207,31 @@ class DiffLink:
     link: the Link to be wrapped
     pose: the initial pose of the link, which is a 4-by-4 matrix
     """
-    def __init__(self, link: Link, pose) -> None:
+    def __init__(self, link: Link, pose = None) -> None:
+        self._link = link
+        if pose is not None: self.init_pose = pose
+
+    @property
+    def init_pose(self) -> Union[torch.Tensor, None]:
+        if len(self.trajectory) == 0:
+            warnings.warn(f"the link: {self._link.name}'s initial pose has not been initialized!")
+            return None
+        return self.trajectory[0]
+    
+    @init_pose.setter
+    def init_pose(self, pose: Union[torch.Tensor, Iterable]) -> None:
         if not isinstance(pose, torch.autograd.Variable):
             pose = _tensor_creator(torch.tensor, pose)
-        if pose.shape != (4,4):
-            raise ValueError("initial pose of a link MUST be a 4-by-4 matrix")
-        self._link = link
-        self.trajectory: List[torch.Tensor] = [_matrix_2_xyz_quat(pose)]
+        if pose.shape == (4,4):
+            pose = _matrix_2_xyz_quat(pose)
+        if pose.shape != (7,):
+            raise ValueError(f"initial pose of a link MUST be a 4-by-4 matrix or a 7-dim vector, got {pose.shape}")
+        self.trajectory: List[torch.Tensor] = [pose]
         """A list of link's 7-D, i.e., xyz+quat, position along the time"""
         self.velocities: List[torch.Tensor] = [
             _tensor_creator(torch.zeros_like, self.trajectory[0])
         ]
+
     
     def __getattr__(self, name):
         return getattr(self._link, name)
@@ -238,27 +264,32 @@ class DiffRobot(Robot):
         diffJoints = (DiffJoint(joint) for joint in joints) if joints is not None else None
         diffLinks  = (DiffLink(link) for link in links) if links is not None else None
         super().__init__(name, diffLinks, diffJoints, transmissions, materials, other_xml)
+        for diffLink, pose in self.link_fk().items():
+            diffLink.init_pose = pose
 
     def link_fk_diff(
         self,
         jointActions: Union[None, List[torch.Tensor]],
-        link_names: Set[str]
+        link_names: Set[str] = None
     ) -> Generator[torch.Tensor, None, None]:
         """ Differetiable version of robot.link_fk
 
         Params
         ------
-        jointActions: if NONE, reset to the original positions, 
-            otherwise, it is expected to be a list of torch.Tensor,
-            each of which specifying a joint's velocity.
-            The sequence is the same as that of self._actuated_joints
-        link_names: the concerned links' names
-
+        jointActions: It is expected to be a list of 
+            torch.Tensor, each of which specifying a
+            joint's velocity. The sequence is the same
+            as that of self._actuated_joints
+        link_names: the concerned links' names, if set
+            to NONE, all the links' velocities will be
+            returned
         Return
         ------
         A sequence of the 7-D velocities (XYZ + Quat) of the
         links specified in link_names. 
         """
+        if link_names == None:
+            link_names = set(self._link_map.keys())
         for idx, joint in enumerate(self._actuated_joints):
             joint.apply_velocity(jointActions[idx])
         fk = {}
@@ -268,25 +299,15 @@ class DiffRobot(Robot):
             for i in range(len(path) - 1):
                 child, parent = path[i], path[i + 1]
                 joint = self._G.get_edge_data(child, parent)['joint']
-
-                if joint.mimic is not None:
-                    mimic_joint = self._joint_map[joint.mimic.joint]
-                    if mimic_joint in self._actuated_joints:
-                        jointAngle = mimic_joint.angle
-                        jointAngle = joint.mimic.multiplier * jointAngle + joint.mimic.offset
-                elif joint in self._actuated_joints and joint.angle != 0:
-                    jointAngle = joint.angle
-                else:
-                    jointAngle = None
                 
-                pose4by4 = joint.get_child_pose().dot(pose4by4)
+                pose4by4 = joint.get_child_pose_diff().mm(pose4by4)
 
                 # Check existing FK to see if we can exit early
                 if parent in fk:
-                    pose4by4 = fk[parent].dot(pose4by4)
+                    pose4by4 = fk[parent].mm(pose4by4)
                     break
             fk[currentLink] = pose4by4
-        for link, pose4by4 in fk:
+        for link, pose4by4 in fk.items():
             link.move_link(pose4by4)
         for linkName in link_names:
             link = self._link_map[linkName]
@@ -314,7 +335,7 @@ class DiffRobot(Robot):
             diffLink = self._link_map[linkName]
             if len(diffLink.velocities) < timeStep:
                 raise ValueError(f"{diffLink.name} does not have {timeStep} time steps")
-            diffLink.velocities[timeStep].backward(gradient)
+            diffLink.velocities[timeStep].backward(gradient, retain_graph=True)
         
         for diffJoint in self._actuated_joints:
             yield diffJoint.velocities[timeStep].grad
