@@ -1,4 +1,3 @@
-from os import times
 import pickle
 from typing import List, Dict
 
@@ -193,3 +192,45 @@ def test_diff_fk():
         for jointVelGrad in robotDiff.backward(timeStep, linkGrad):
             assert jointVelGrad != None, f"NONE Gradient at time={timeStep}"         
     
+def test_diff_fk_random_actions():
+    rounds = 10
+    diffRobot = DiffRobot.load('tests/data/ur5/ur5.urdf')
+    robotRaw  = Robot.load('tests/data/ur5/ur5.urdf')
+    jointN = len(diffRobot._actuated_joints)
+    actions = [
+        [
+            0.01 * torch.rand((1,), dtype=torch.float64, device = 'cuda', requires_grad=True)
+            for _ in range(jointN)
+        ] for timeStep in range(rounds)
+    ]
+    cfgs = []
+    for eachAction in actions:
+        cfgs.append(
+            {
+                jointName: 24 * eachAction[idx].detach().cpu().numpy()
+                for idx, jointName in enumerate(diffRobot.actuated_joint_names)
+            }
+        )
+    for action in actions:
+        for _ in diffRobot.link_fk_diff(action): pass
+
+    groundTruthPos = None
+    for cfg in cfgs:
+        groundTruthPos = robotRaw.link_fk(cfg, cfgType=FK_CFG_Type.velocity, use_names=True)
+    for diffJoint in diffRobot._actuated_joints:
+        angle = diffJoint.angle.detach().cpu().numpy()
+        jointInRaw = robotRaw._joint_map[diffJoint.name]
+        assert np.allclose(
+            robotRaw._current_cfg[jointInRaw],
+            angle,
+            rtol=1e-3
+        ), f"MISSMATCH: {diffJoint.name}'s angle, TORCH is {angle}, while NUMPY gives {robotRaw._current_cfg[jointInRaw]}"
+    for diffLink in diffRobot._links:
+        testResult = diffLink.trajectory[-1]
+        assert diffLink.name in groundTruthPos, f"{diffLink.name} not in robotRaw"
+        trueResult = torch.tensor(groundTruthPos[diffLink.name], dtype=torch.float64, device=DEVICE)
+        trueResult = _matrix_2_xyz_quat(trueResult)
+        assert torch.allclose(testResult, trueResult, rtol=1e-3), \
+            f"{diffLink}'s final position is different in diffRobot and robotRaw" +\
+            f"\nexpecting {trueResult.cpu().numpy()}" + \
+            f"got {testResult.detach().cpu().numpy()}"

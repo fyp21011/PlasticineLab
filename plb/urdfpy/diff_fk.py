@@ -30,7 +30,7 @@ def _tensor_creator(creator: Callable[[Any], torch.Tensor], *value, **kwargs) ->
     return creator(*value, **kwargs)
 
 def _matrix_2_xyz_quat(matrix: torch.Tensor) -> torch.Tensor:
-    """ Convert a (4, 4) matrix to a 6-dim XYZ-RPY transformation
+    """ Convert a (4, 4) matrix to a 7-dim XYZ-Quat transformation
 
     Params
     ------
@@ -270,7 +270,7 @@ class DiffRobot(Robot):
     def link_fk_diff(
         self,
         jointActions: Union[None, List[torch.Tensor]],
-        link_names: Set[str] = None
+        link_names: List[str] = None
     ) -> Generator[torch.Tensor, None, None]:
         """ Differetiable version of robot.link_fk
 
@@ -289,7 +289,7 @@ class DiffRobot(Robot):
         links specified in link_names. 
         """
         if link_names == None:
-            link_names = set(self._link_map.keys())
+            link_names = self._link_map.keys()
         for idx, joint in enumerate(self._actuated_joints):
             joint.apply_velocity(jointActions[idx])
         fk = {}
@@ -309,9 +309,10 @@ class DiffRobot(Robot):
             fk[currentLink] = pose4by4
         for link, pose4by4 in fk.items():
             link.move_link(pose4by4)
-        for linkName in link_names:
-            link = self._link_map[linkName]
-            yield link.velocities[-1]
+        return [
+            self._link_map[linkName].velocities[-1]
+            for linkName in link_names
+        ]
     
     def backward(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]):
         """ Backward the gradients from links' velocity at one moment to
