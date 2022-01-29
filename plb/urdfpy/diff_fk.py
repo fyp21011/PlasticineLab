@@ -256,7 +256,7 @@ class DiffLink:
         self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / TIME_INTERVAL)
         return self.velocities[-1]
 
-#TODO: after unit tests!!!   
+
 class DiffRobot(Robot):
     """ The robot with differentiable forward kinematics
     """
@@ -314,7 +314,7 @@ class DiffRobot(Robot):
             for linkName in link_names
         ]
     
-    def backward(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]):
+    def backward(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]) -> Generator[torch.Tensor, None, None]:
         """ Backward the gradients from links' velocity at one moment to
         the actuated joints' velocities
 
@@ -340,3 +340,16 @@ class DiffRobot(Robot):
         
         for diffJoint in self._actuated_joints:
             yield diffJoint.velocities[timeStep].grad
+
+    @property
+    def cursor(self) -> int:
+        """ Return the current time cursor
+
+        * -1 if the links' poses has not been intialized
+        *  0 if the no action has been taken (so links are 
+            at their default position)
+        """
+        return max(
+            len(diffLink.trajectory if diffLink.trajectory else 0)
+            for diffLink in self._links
+        ) - 1
