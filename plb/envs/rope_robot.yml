@@ -29,12 +29,12 @@ PRIMITIVES:
     init_pos: (0.3919300650726247, 0., 0.4990770359432596)
     color: (0.3, 0.3, 0.3)
     friction: 0.9
-  - shape: Robot
-    path: tests/data/ur5/ur5.urdf
-    offset: (0.01, -0.1, 0.0)
 ENV:
   loss:
     target_path: envs/data/Rope3D-v1.npy
+ROBOTS:
+  - path: tests/data/ur5/ur5.urdf
+    offset: (0.01, -0.1, 0.0)
 RENDERER:
   camera_pos: (0.5, 2.5, 2.)
   camera_rot: (1.0, 0.)

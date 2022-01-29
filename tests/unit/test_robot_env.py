@@ -6,5 +6,5 @@ def test_load_robot_env():
     tcEnv = TaichiEnv(cfg, False)
     assert len(tcEnv.primitives.action_dims) == 5
     assert tcEnv.primitives.action_dim == 12
-    assert len(tcEnv.primitives._robots.robots) == 1
-    assert len(tcEnv.primitives._robots.robots[0].link_map.keys()) == 11
+    assert len(tcEnv.robots_controller.robots) == 1
+    assert len(tcEnv.robots_controller.robots[0].link_map.keys()) == 11

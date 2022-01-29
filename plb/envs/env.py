@@ -76,8 +76,6 @@ class PlasticineEnv(gym.Env):
                 cfg.PRIMITIVES, new_cfg.PRIMITIVES)
         if 'SHAPES' in new_cfg:
             new_cfg.SHAPES = merge_lists(cfg.SHAPES, new_cfg.SHAPES)
-        assert not ('ROBOT' in new_cfg and 'ROBOT' in cfg), \
-            "there can be only one robot"
         cfg.merge_from_other_cfg(new_cfg)
 
         cfg.defrost()

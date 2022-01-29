@@ -20,9 +20,11 @@ class TaichiEnv:
         from .shapes import Shapes
         from .losses import Loss
         from .nn.mlp import MLP
+        from .robots import RobotsController
 
         self.cfg = cfg.ENV
         self.primitives = Primitives(cfg.PRIMITIVES)
+        self.robots_controller = RobotsController.parse_config(cfg.ROBOTS, self.primitives)
         self.shapes = Shapes(cfg.SHAPES)
         self.init_particles, self.particle_colors = self.shapes.get()
 
