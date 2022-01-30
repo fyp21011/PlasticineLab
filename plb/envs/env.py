@@ -4,7 +4,6 @@ import os
 import yaml
 import numpy as np
 
-from plb.engine.primitive.primive_base import Primitive
 from ..config import load
 from yacs.config import CfgNode
 from .utils import merge_lists
