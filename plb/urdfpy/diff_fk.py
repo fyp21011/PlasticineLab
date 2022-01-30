@@ -271,7 +271,7 @@ class DiffRobot(Robot):
         self,
         jointActions: Union[None, List[torch.Tensor]],
         link_names: List[str] = None
-    ) -> Generator[torch.Tensor, None, None]:
+    ) -> List[torch.Tensor]:
         """ Differetiable version of robot.link_fk
 
         Params

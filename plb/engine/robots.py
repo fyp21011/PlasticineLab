@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from typing import List, Dict, Iterable, Union, Generator
 import warnings
 import yaml
@@ -86,7 +87,6 @@ class RobotsController:
             diffRobot = DiffRobot.load(eachOutCfg.path)
             for shape in rc.append_robot(diffRobot, eachOutCfg.offset):
                 primitiveController.primitives.append(shape)
-        rc.export_action_dims(to = primitiveController.action_dims)
         return rc
 
     @classmethod
@@ -146,7 +146,7 @@ class RobotsController:
             joint.action_dim
             for joint in robot.actuated_joints
         ))
-        self.link_2_primitives.append({})
+        self.link_2_primitives.append(OrderedDict())
         for linkName, link in robot.link_map.items():
             if len(link.collisions) > 1:
                 raise ValueError(f"{linkName} has multiple collision")
@@ -219,7 +219,7 @@ class RobotsController:
 
         return jointActions
     
-    def set_robot_actions(self, substeps: int, envActions: torch.Tensor, primitiveCnt: int = 0):
+    def set_robot_actions(self, envActions: torch.Tensor, primitiveCnt: int = 0):
         """ Set the actions for the robot.
 
         Params
@@ -237,11 +237,13 @@ class RobotsController:
                 envActions[dimCounter : dimCounter + actionDims]
             )
             dimCounter += actionDims
-            linkNames      = list(primitiveDict.keys())
-            for eachName, eachVelocity in zip(linkNames, robot.link_fk_diff(jointVelocity, linkNames)):
-                #TODO: convert primitive velocity to Taichi
-                primitiveDict[eachName].set_action(robot.cursor, substeps, eachVelocity)
-
+            # NOTE: the primitiveDict is an ordered dict, whose key sequence is the very sequence 
+            #       of the primitives being yielded during the robot being appended
+            result = []
+            for linkVelocity in robot.link_fk_diff(jointVelocity, primitiveDict.keys()):
+                result.append(linkVelocity.detach().cpu().numpy())
+            return np.concatenate(result)
+            
     def get_robot_action_grad(self, s, n):
         actionGrad = []
         for robot, primitiveDict in zip(self.robots, self.link_2_primitives):

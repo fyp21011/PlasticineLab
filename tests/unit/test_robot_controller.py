@@ -88,7 +88,7 @@ def test_single_robot():
         torch.rand((1,), device='cuda', dtype=torch.float64, requires_grad=True)
         for _ in range(robotActionDim)
     ]
-    rc.set_robot_actions(1, envAction, 3)
+    rc.set_robot_actions(envAction, 3)
     poseA: Dict[Link, Any] = robot._current_cfg
     robot.link_fk(envAction[3:], cfgType=FK_CFG_Type.angle)
     poseB: Dict[Link, Any] = robot._current_cfg
@@ -162,7 +162,7 @@ def test_dual_robot():
         torch.rand((1,), device='cuda', dtype=torch.float64, requires_grad=True)
         for _ in range(robotActionDim * 2)
     ]
-    rc.set_robot_actions(1, envAction, 3)
+    rc.set_robot_actions(envAction, 3)
     poseA: Dict[Link, Any] = robotB._current_cfg
     robotB.link_fk(envAction[3 + robotActionDim:], cfgType=FK_CFG_Type.angle)
     poseB: Dict[Link, Any] = robotB._current_cfg

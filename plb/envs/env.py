@@ -28,7 +28,7 @@ class PlasticineEnv(gym.Env):
         obs = self.reset()
         self.observation_space = Box(-np.inf, np.inf, obs.shape)
         self.action_space = Box(-1, 1,
-                                (self.taichi_env.primitives.action_dim,))
+                                (self.taichi_env.action_dim,))
 
     def reset(self):
         self.taichi_env.set_state(**self._init_state)
