@@ -16,10 +16,13 @@ install_requires = [
     'imageio',
     'open3d',
     'lxml',
-    'networkx'
+    'networkx',
+    'pytorch3d',
+    'pytest'
 ]
 
-setup(name='plb',
-      version='0.0.1',
-      install_requires=install_requires,
-      )
+setup(
+    name='plb',
+    version='0.0.1',
+    install_requires=install_requires,
+)

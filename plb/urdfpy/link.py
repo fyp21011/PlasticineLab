@@ -387,7 +387,7 @@ class Link(URDFType):
         self._visuals = value
 
     @property
-    def collisions(self):
+    def collisions(self) -> List[Collision]:
         """list of :class:`.Collision` : The collision properties of this link.
         """
         return self._collisions

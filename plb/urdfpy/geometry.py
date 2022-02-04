@@ -397,7 +397,7 @@ class Geometry(URDFType):
         self.mesh = mesh
 
     @property
-    def box(self):
+    def box(self) -> Box:
         """:class:`.Box` : Box geometry.
         """
         return self._box
@@ -409,7 +409,7 @@ class Geometry(URDFType):
         self._box = value
 
     @property
-    def cylinder(self):
+    def cylinder(self) -> Cylinder:
         """:class:`.Cylinder` : Cylinder geometry.
         """
         return self._cylinder
@@ -421,7 +421,7 @@ class Geometry(URDFType):
         self._cylinder = value
 
     @property
-    def sphere(self):
+    def sphere(self) -> Sphere:
         """:class:`.Sphere` : Spherical geometry.
         """
         return self._sphere
@@ -515,7 +515,7 @@ class Collision(URDFType):
         self.origin = origin
 
     @property
-    def geometry(self):
+    def geometry(self) -> Geometry:
         """:class:`.Geometry` : The geometry of this element.
         """
         return self._geometry

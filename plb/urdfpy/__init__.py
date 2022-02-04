@@ -7,7 +7,8 @@ from .geometry import Box, Cylinder, Sphere, Mesh, Geometry, Collision
 from .link import Texture, Material, Visual, Link
 from .joint import JointCalibration, JointDynamics, JointLimit, JointMimic, SafetyController, Joint
 from .transmission import Transmission, TransmissionJoint, Actuator
-from .manipulation import Robot
+from .manipulation import Robot, FK_CFG_Type
+from .diff_fk import DiffRobot
 from .utils import (rpy_to_matrix, matrix_to_rpy, xyz_rpy_to_matrix,
                     matrix_to_xyz_rpy)
 
@@ -16,7 +17,6 @@ __all__ = [
     'Texture', 'Material', 'Collision', 'Visual',
     'JointCalibration', 'JointDynamics', 'JointLimit', 'JointMimic',
     'SafetyController', 'Actuator', 'TransmissionJoint',
-    'Transmission', 'Joint', 'Link', 'Robot',
-    'rpy_to_matrix', 'matrix_to_rpy', 'xyz_rpy_to_matrix', 'matrix_to_xyz_rpy',
-    '__version__'
+    'Transmission', 'Joint', 'Link', 'Robot', 'FK_CFG_Type', 'DiffRobot', 
+    'rpy_to_matrix', 'matrix_to_rpy', 'xyz_rpy_to_matrix', 'matrix_to_xyz_rpy'
 ]

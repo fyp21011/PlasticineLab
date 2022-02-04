@@ -79,13 +79,6 @@ def test_urdfpy(tmpdir):
             assert isinstance(key, o3d.geometry.TriangleMesh)
             assert fk[key].shape == (4,4)
 
-    # Test save
-    u.save(outfn)
-
-    nu = Robot.load(outfn)
-    assert len(u.links) == len(nu.links)
-    assert len(u.joints) == len(nu.joints)
-
     # Test scale
     x = u.copy(scale=3)
     assert isinstance(x, Robot)

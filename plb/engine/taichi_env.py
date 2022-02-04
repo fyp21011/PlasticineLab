@@ -1,6 +1,10 @@
 import numpy as np
 import cv2
 import taichi as ti
+import torch
+
+from plb.engine.robots import RobotsController
+from plb.engine.primitive import Primitives
 
 # TODO: run on GPU, fast_math will cause error on float64's sqrt; removing it cuases compile error..
 ti.init(arch=ti.gpu, debug=False, fast_math=True)
@@ -15,7 +19,6 @@ class TaichiEnv:
         # primitives are environment specific parameters ..
         # move it inside can improve speed; don't know why..
         from .mpm_simulator import MPMSimulator
-        from .primitive import Primitives
         from .renderer import Renderer
         from .shapes import Shapes
         from .losses import Loss
@@ -23,6 +26,9 @@ class TaichiEnv:
 
         self.cfg = cfg.ENV
         self.primitives = Primitives(cfg.PRIMITIVES)
+        self.robots_controller = RobotsController.parse_config(cfg.ROBOTS, self.primitives)
+        self.action_dims = self.primitives.action_dims.copy()
+        self.robots_controller.export_action_dims(to = self.action_dims)
         self.shapes = Shapes(cfg.SHAPES)
         self.init_particles, self.particle_colors = self.shapes.get()
 
@@ -40,6 +46,10 @@ class TaichiEnv:
         else:
             self.loss = None
         self._is_copy = True
+    
+    @property
+    def action_dim(self) -> int:
+        return self.action_dims[-1]
 
     def set_copy(self, is_copy: bool):
         self._is_copy = is_copy
@@ -94,7 +104,12 @@ class TaichiEnv:
 
     def step(self, action=None):
         if action is not None:
-            action = np.array(action)
+            action = np.r_[
+                action[:self.primitives.action_dim].detach().cpu().numpy() if isinstance(action, torch.Tensor) \
+                    else np.array(action[:self.primitives.action_dim]),
+                self.robots_controller.set_robot_actions(action, self.primitives.action_dim)
+            ]
+
         self.simulator.step(is_copy=self._is_copy, action=action)
 
     def compute_loss(self):
