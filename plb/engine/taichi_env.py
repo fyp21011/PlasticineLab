@@ -35,7 +35,7 @@ class TaichiEnv:
         cfg.SIMULATOR.defrost()
         self.n_particles = cfg.SIMULATOR.n_particles = len(self.init_particles)
 
-        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitives)
+        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitives, self.robots_controller)
         self.renderer = Renderer(cfg.RENDERER, self.primitives)
 
         if nn:

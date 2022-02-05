@@ -6,7 +6,7 @@ import torch.nn as nn
 
 @ti.data_oriented
 class MPMSimulator:
-    def __init__(self, cfg, primitives=()):
+    def __init__(self, cfg, primitives=(), robots=None):
         dim = self.dim = cfg.dim
         assert cfg.dtype == 'float64'
         dtype = self.dtype = ti.f64 if cfg.dtype == 'float64' else ti.f32
@@ -67,7 +67,10 @@ class MPMSimulator:
 
         # gravity ...
         self.gravity = ti.Vector.field(dim, dtype=dtype, shape=())
+
+        # controllers
         self.primitives = primitives
+        self.robots = robots
 
         # torch neural net
         self.nn = None
@@ -481,12 +484,14 @@ class MPMSimulator:
     @ti.complex_kernel_grad(act)
     def act_grad(self,obs,cur,a):
         action = self.torch_actions.pop()
+        # SHAPE: (SUM(FREE PRIMITIVE'S DOF) + SUM(JOINT'S DOF), )
+
         # This get the gradient for a action
-        actuation_grad = self.primitives.get_step_grad(cur)
-        # actuation_grad = self.primitives.get_step_grad(cur).reshape(1,1,-1) # lstm
+        actuation_grad = self.primitives.get_step_grad(cur) # The free primitives' gradient
+        joint_velocity_grad = self.robots.get_robot_action_grad(0, cur) # The joint-level primitives
 
         # grad preprocessing
-        clipped_actuation_grad = torch.from_numpy(actuation_grad)
+        clipped_actuation_grad = torch.cat((torch.from_numpy(actuation_grad), joint_velocity_grad))
         # nn.utils.clip_grad_norm_(clipped_actuation_grad, max_norm=1.0, norm_type=2)
         nn.utils.clip_grad_value_(clipped_actuation_grad, clip_value=1.0)
 
