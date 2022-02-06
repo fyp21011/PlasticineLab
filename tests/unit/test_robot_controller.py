@@ -44,7 +44,7 @@ def test_deflatten_robot_actions():
 
 def test_single_robot():
     rc = RobotsController()
-    robot = DiffRobot.load('tests/data/ur5/ur5.urdf')
+    robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
 
 
     # test append robot
@@ -108,8 +108,8 @@ def test_single_robot():
 
 def test_dual_robot():
     rc = RobotsController()
-    robotA = DiffRobot.load('tests/data/ur5/ur5.urdf')
-    robotB = DiffRobot.load('tests/data/ur5/ur5.urdf')
+    robotA = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
+    robotB = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
     
     linkCnt = sum((
         1 for _ in rc.append_robot(robotA)
