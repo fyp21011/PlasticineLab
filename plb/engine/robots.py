@@ -11,7 +11,7 @@ from plb.config.utils import make_cls_config
 from plb.urdfpy import DiffRobot, Robot, Collision
 from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
 
-ROBOT_LINK_DOF = 6
+ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
 ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
 
