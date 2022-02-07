@@ -261,7 +261,7 @@ class DiffRobot(Robot):
         self,
         jointActions: Union[None, List[torch.Tensor]],
         link_names: List[str] = None
-    ) -> List[torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         """ Differetiable version of robot.link_fk
 
         Params
@@ -275,8 +275,8 @@ class DiffRobot(Robot):
             returned
         Return
         ------
-        A sequence of the 7-D velocities (XYZ + Quat) of the
-        links specified in link_names. 
+        A mapping from link names to their poses, each
+        being a 7-dim vector
         """
         if link_names == None:
             link_names = self._link_map.keys()
@@ -299,10 +299,11 @@ class DiffRobot(Robot):
             fk[currentLink] = pose4by4
         for link, pose4by4 in fk.items():
             link.move_link(pose4by4)
-        return [
-            self._link_map[linkName].velocities[-1]
+        return {
+            linkName: self._link_map[linkName].trajectory[-1]
             for linkName in link_names
-        ]
+        }
+    
     
     def fk_gradient(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]) -> Generator[torch.Tensor, None, None]:
         """ Backward the gradients from links' velocity at one moment to

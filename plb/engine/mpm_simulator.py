@@ -6,7 +6,7 @@ import torch.nn as nn
 
 @ti.data_oriented
 class MPMSimulator:
-    def __init__(self, cfg, primitives=(), robots=None):
+    def __init__(self, cfg, primitives=(), robotController=None):
         dim = self.dim = cfg.dim
         assert cfg.dtype == 'float64'
         dtype = self.dtype = ti.f64 if cfg.dtype == 'float64' else ti.f32
@@ -70,7 +70,7 @@ class MPMSimulator:
 
         # controllers
         self.primitives = primitives
-        self.robots = robots
+        self.robots = robotController
 
         # torch neural net
         self.nn = None
@@ -302,8 +302,9 @@ class MPMSimulator:
         self.svd()
         self.p2g(s)
 
-        for i in range(self.n_primitive):
+        for i in range(self.primitives.n):
             self.primitives[i].forward_kinematics(s)
+        self.robots.forward_kinematics(s)
 
         self.grid_op(s)
         self.g2p(s)
@@ -322,8 +323,9 @@ class MPMSimulator:
         self.g2p.grad(s)
         self.grid_op.grad(s)
 
-        for i in range(self.n_primitive-1, -1, -1):
+        for i in range(self.primitives.n-1, -1, -1):
             self.primitives[i].forward_kinematics.grad(s)
+        # self.robots.forward_kinematics_grad(s)
 
         self.p2g.grad(s)
         self.svd_grad()
@@ -444,8 +446,9 @@ class MPMSimulator:
         self.cur = start + self.substeps
 
         if action is not None:
-            self.primitives.set_action(
-                start//self.substeps, self.substeps, action)
+            self.primitives.set_action(start//self.substeps, self.substeps, 
+                action[:self.primitives.action_dim])
+            self.robots.set_action(action[self.primitives.action_dim:])
 
         for s in range(start, self.cur):
             self.substep(s)
@@ -487,8 +490,8 @@ class MPMSimulator:
         # SHAPE: (SUM(FREE PRIMITIVE'S DOF) + SUM(JOINT'S DOF), )
 
         # This get the gradient for a action
-        actuation_grad = self.primitives.get_step_grad(cur) # The free primitives' gradient
-        joint_velocity_grad = self.robots.get_robot_action_grad(0, cur) # The joint-level primitives
+        actuation_grad = self.primitives.get_step_action_grad(cur) # The free primitives' gradient
+        joint_velocity_grad = self.robots.get_robot_action_grad(cur) # The joint-level primitives
 
         # grad preprocessing
         clipped_actuation_grad = torch.cat((torch.from_numpy(actuation_grad), joint_velocity_grad))

@@ -60,6 +60,8 @@ class RobotsController:
         corresponds to the collision geometry of the link named as `LinkName`
         in `RobotIdx`'s robot
         """
+        self.flatten_actions = None
+        """current action"""
 
     @classmethod
     def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: Primitives) -> "RobotsController":
@@ -223,38 +225,41 @@ class RobotsController:
 
         return jointActions
     
-    def set_robot_actions(self, envActions: torch.Tensor, primitiveCnt: int = 0):
+    def set_action(self, actions: torch.Tensor):
+        """ Set the actions for the robots
+        """
+        self.flatten_actions = actions
+
+    def forward_kinematics(self, stepIdx: int):
         """ Set the actions for the robot.
 
         Params
         ------
-        envActions: a list of all the actions in this environment, the first 
-            several elements of which might be irrelevant to the environment
-        primitiveCnt: the number of the irrelevant actions
+        stepIdx: the step index
         """
-        totalActions = len(envActions)
-        assert primitiveCnt <= totalActions
-        dimCounter = primitiveCnt
+        dimCounter = 0
         for robot, actionDims, primitiveDict in zip(self.robots, self.robot_action_dims, self.link_2_primitives):
             jointVelocity = self._deflatten_robot_actions(
                 robot,
-                envActions[dimCounter : dimCounter + actionDims]
+                self.flatten_actions[dimCounter : dimCounter + actionDims]
             )
             dimCounter += actionDims
             # NOTE: the primitiveDict is an ordered dict, whose key sequence is the very sequence 
             #       of the primitives being yielded during the robot being appended
-            result = []
-            for linkVelocity in robot.link_fk_diff(jointVelocity, primitiveDict.keys()):
-                result.append(linkVelocity.detach().cpu().numpy())
-            return np.concatenate(result)
+            fkResult = robot.link_fk_diff(jointVelocity, primitiveDict.keys())
+            for linkName, pose in fkResult:
+                primitiveDict[linkName].apply_robot_forward_kinemtaics(stepIdx, pose)
+
             
-    def get_robot_action_grad(self, s: int, n: int) -> torch.Tensor:
+    def get_robot_action_grad(self, s: int) -> torch.Tensor:
         actionGrad = []
         for robot, link2primitive in zip(self.robots, self.link_2_primitives):
-            linkGrad = {
-                linkName: primitive.get_action_grad(s, n).to_numpy().reshape(-1)
-                for linkName, primitive in link2primitive.items()
-            }
+            linkGrad = {}
+            for linkName, primitive in link2primitive.items():
+                linkGrad[linkName] = np.concatenate((
+                    primitive.position[s + 1].to_numpy().reshape(-1),
+                    primitive.rotation[s + 1].to_numpy().reshape(-1)
+                ))
             for grad in robot.fk_gradient(s, linkGrad):
                 actionGrad.append(grad)
         return torch.cat(actionGrad)
