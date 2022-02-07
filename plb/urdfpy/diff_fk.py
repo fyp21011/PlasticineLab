@@ -155,16 +155,6 @@ class DiffJoint:
         or (velShape and velShape[-1] != self._joint.action_dim):
             raise ValueError(f"Joint: {self._joint.name} expects {self._joint.action_dim}"+\
                 f"-dim velocity, but got {vel.shape if vel.shape else 1}-d velocity")
-
-        # if self._joint.mimic is not None:
-        #     mimic_joint = self._joint._joint_map[self._joint.mimic.joint]
-        #     if mimic_joint in self._joint._actuated_joints:
-        #         jointAngle = mimic_joint.angle
-        #         jointAngle = self._joint.mimic.multiplier * jointAngle + self._joint.mimic.offset
-        # elif self._joint in self._joint._actuated_joints and self._joint.angle != 0:
-        #     jointAngle = self._joint.angle
-        # else:
-        #     jointAngle = None
         
         self.angle = self.angle + vel * TIME_INTERVAL
         self.velocities.append(vel)
@@ -314,9 +304,9 @@ class DiffRobot(Robot):
             for linkName in link_names
         ]
     
-    def backward(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]) -> Generator[torch.Tensor, None, None]:
+    def fk_gradient(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]) -> Generator[torch.Tensor, None, None]:
         """ Backward the gradients from links' velocity at one moment to
-        the actuated joints' velocities
+        the actuated joints' velocities, i.e. reverse the FK path
 
         Params
         ------
@@ -340,16 +330,3 @@ class DiffRobot(Robot):
         
         for diffJoint in self._actuated_joints:
             yield diffJoint.velocities[timeStep].grad
-
-    @property
-    def cursor(self) -> int:
-        """ Return the current time cursor
-
-        * -1 if the links' poses has not been intialized
-        *  0 if the no action has been taken (so links are 
-            at their default position)
-        """
-        return max(
-            len(diffLink.trajectory if diffLink.trajectory else 0)
-            for diffLink in self._links
-        ) - 1

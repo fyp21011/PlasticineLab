@@ -189,7 +189,7 @@ def test_diff_fk():
             linkName: torch.ones((7,), device=DEVICE)
             for linkName in robotDiff._link_map.keys()
         }
-        for jointVelGrad in robotDiff.backward(timeStep, linkGrad):
+        for jointVelGrad in robotDiff.fk_gradient(timeStep, linkGrad):
             assert jointVelGrad != None, f"NONE Gradient at time={timeStep}"         
     
 def test_diff_fk_random_actions():

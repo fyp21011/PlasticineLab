@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from yacs.config import CfgNode as CN
 from plb.config.utils import make_cls_config
+from plb.engine.primitive import primitives
 
 from plb.urdfpy import DiffRobot, Robot, Collision
 from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
@@ -189,15 +190,18 @@ class RobotsController:
 
         For example, if a robot has four joints, whose action spaces are 
         (1,1), (2,1), (6,1) and (1,1). Assume the input action list is
-        [0.121, 0.272, 0.336, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.57]. It will therefore
-        be deflattened to
+        ```
+        [0.121, 0.272, 0.336, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.57]
+        ``` 
+        It will therefore be deflattened to
+        ```
         [
             0.121, 
             [0.272, 0.336], 
             [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
             1.57
         ]
-
+        ```
         Params
         ------
         robot: the urdf-loaded robot, for whom the flatten actions will be recovered
@@ -244,16 +248,13 @@ class RobotsController:
                 result.append(linkVelocity.detach().cpu().numpy())
             return np.concatenate(result)
             
-    def get_robot_action_grad(self, s, n):
+    def get_robot_action_grad(self, s: int, n: int) -> torch.Tensor:
         actionGrad = []
-        for robot, primitiveDict in zip(self.robots, self.link_2_primitives):
-            actionGrad.append(grad for grad in robot.backward(s, linkGrad={
-                linkName: primitiveShape.get_action_grad(s, n).to_numpy().reshape(-1)
-                for linkName, primitiveShape in primitiveDict.items()
-            }))
+        for robot, link2primitive in zip(self.robots, self.link_2_primitives):
+            linkGrad = {
+                linkName: primitive.get_action_grad(s, n).to_numpy().reshape(-1)
+                for linkName, primitive in link2primitive.items()
+            }
+            for grad in robot.fk_gradient(s, linkGrad):
+                actionGrad.append(grad)
         return torch.cat(actionGrad)
-                
-
-    def get_robot_action_step_grad(self, s, n):
-        # TODO: figure out the differences between this one and the upper one
-        pass
