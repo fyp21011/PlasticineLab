@@ -7,7 +7,7 @@ import torch
 
 from plb.urdfpy import *
 from plb.urdfpy.diff_fk import (
-    TIME_INTERVAL,
+    VELOCITY_SCALE,
     DiffJoint,
     DiffLink,
     _matrix_2_xyz_quat, 
@@ -101,13 +101,13 @@ def test_diff_joint():
         diffJoint.apply_velocity(action1)
         with torch.no_grad():
             assert len(diffJoint.velocities) == 2 and torch.allclose(diffJoint.angle, \
-                action1 * TIME_INTERVAL, rtol=1e-3), \
-                f"applying {action1} to joint, expecting {action1 * TIME_INTERVAL}, get {diffJoint.angle}"
+                action1 * VELOCITY_SCALE, rtol=1e-3), \
+                f"applying {action1} to joint, expecting {action1 * VELOCITY_SCALE}, get {diffJoint.angle}"
         action2 = _tensor_creator(torch.rand, (diffJoint.action_dim, )) * 0.01
         diffJoint.apply_velocity(action2)
         with torch.no_grad():
-            assert len(diffJoint.velocities) == 3 and torch.allclose(diffJoint.angle, (action1 * TIME_INTERVAL + action2 * TIME_INTERVAL), rtol=1e-3), f"applying {action1}, "+\
-                f"{action2} to joint, expecting {action1 * TIME_INTERVAL + action2 * TIME_INTERVAL}, get {diffJoint.angle}"
+            assert len(diffJoint.velocities) == 3 and torch.allclose(diffJoint.angle, (action1 * VELOCITY_SCALE + action2 * VELOCITY_SCALE), rtol=1e-3), f"applying {action1}, "+\
+                f"{action2} to joint, expecting {action1 * VELOCITY_SCALE + action2 * VELOCITY_SCALE}, get {diffJoint.angle}"
 
         # test backward
         action1.retain_grad()
@@ -207,7 +207,7 @@ def test_diff_fk_random_actions():
     for eachAction in actions:
         cfgs.append(
             {
-                jointName: 24 * eachAction[idx].detach().cpu().numpy()
+                jointName: eachAction[idx].detach().cpu().numpy()
                 for idx, jointName in enumerate(diffRobot.actuated_joint_names)
             }
         )

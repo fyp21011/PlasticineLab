@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import copy
 from typing import List, Dict, Iterable, Union, Generator
 import warnings
 import yaml
@@ -7,10 +8,11 @@ import numpy as np
 import torch
 from yacs.config import CfgNode as CN
 from plb.config.utils import make_cls_config
-from plb.engine.primitive import primitives
+from plb.engine.controller import Controller, DiffFKWrapper
 
 from plb.urdfpy import DiffRobot, Robot, Collision
 from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
+from plb.urdfpy.diff_fk import DEVICE
 
 ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
@@ -49,7 +51,7 @@ def _generate_primitive_config(rawPose: torch.Tensor, offset:Iterable[float], sh
         else:                     configDict[key] = str(value)
     return CN(init_dict=configDict)
 
-class RobotsController:
+class RobotsController(Controller):
     """ A controller that maps robot to primitive links
     """
     def __init__(self) -> None:
@@ -60,8 +62,20 @@ class RobotsController:
         corresponds to the collision geometry of the link named as `LinkName`
         in `RobotIdx`'s robot
         """
-        self.flatten_actions = None
-        """current action"""
+        self.current_step = 0
+        """pointer to the current step
+
+        Example
+        -------
+        `self.current_step = 3` ==> 
+        * the first tree, i.e., `self.flatten_actions[:3]` are executed
+        * `self.flatten_actions[3]` are the one to be executed next
+        """
+        self._diff_fk = DiffFKWrapper(self._forward_kinematics, self._forward_kinematics_grad)
+    
+    @property
+    def forward_kinematics(self):
+        return self._diff_fk
 
     @classmethod
     def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: Primitives) -> "RobotsController":
@@ -225,33 +239,57 @@ class RobotsController:
 
         return jointActions
     
-    def set_action(self, actions: torch.Tensor):
+    def set_action(self, step_idx: int, n_substep: int, actions: torch.Tensor):
         """ Set the actions for the robots
-        """
-        self.flatten_actions = actions
-
-    def forward_kinematics(self, stepIdx: int):
-        """ Set the actions for the robot.
 
         Params
         ------
-        stepIdx: the step index
+        step_idx: the step index
+        n_substep: how many substep each step contains
+        actions: the actions to be applied on the step_idx step
         """
-        dimCounter = 0
-        for robot, actionDims, primitiveDict in zip(self.robots, self.robot_action_dims, self.link_2_primitives):
-            jointVelocity = self._deflatten_robot_actions(
-                robot,
-                self.flatten_actions[dimCounter : dimCounter + actionDims]
-            )
-            dimCounter += actionDims
-            # NOTE: the primitiveDict is an ordered dict, whose key sequence is the very sequence 
-            #       of the primitives being yielded during the robot being appended
-            fkResult = robot.link_fk_diff(jointVelocity, primitiveDict.keys())
-            for linkName, pose in fkResult:
-                primitiveDict[linkName].apply_robot_forward_kinemtaics(stepIdx, pose)
+        while self.current_step <= (step_idx + 1) * n_substep:
+            dim_counter = 0
+            for robot, action_dim in zip(self.robots, self.robot_action_dims):
+                jointVelocity = self._deflatten_robot_actions(robot, actions[dim_counter : dim_counter + action_dim])
+                dim_counter += action_dim
+                # NOTE: the primitive dict is an ordered dict, whose key sequence is the very sequence 
+                #       of the primitives being yielded during the robot being appended
+                robot.link_fk_diff(jointVelocity)
+            self.current_step += 1
+
+    def _forward_kinematics(self, step_idx: int):
+        """ Applies the forward kinematics result to primitives
+
+        wrapped in the `self.forward_kinematics` callable property, such that
+        `self.forward_kinematics(s)` invokes this method
+
+        Params
+        ------
+        step_idx: the step index
+        """
+        for robot, primitive_dict in zip(self.robots, self.link_2_primitives):
+            for name, link in robot._link_map:
+                primitive_dict[name].apply_robot_forward_kinemtaics(
+                    step_idx, 
+                    link.trajectory[step_idx]
+                )
+
+    def _forward_kinematics_grad(self, step_idx: int):
+        """ Gradient method for `self._forward_kinematics`
+
+        wrapped in the `self.forward_kinematics` callable property, such that
+        `self.forward_kinematics.grad(s)` invokes this method
+        """
+        for robot, primitive_dict in zip(reversed(self.robots), reversed(self.link_2_primitives)):
+            for name, link in robot._link_map:
+                primitive_dict[name].apply_robot_forward_kinemtaics.grad(
+                    step_idx, 
+                    link.trajectory[step_idx]
+                )
 
             
-    def get_robot_action_grad(self, s: int) -> torch.Tensor:
+    def get_step_grad(self, s: int) -> torch.Tensor:
         actionGrad = []
         for robot, link2primitive in zip(self.robots, self.link_2_primitives):
             linkGrad = {}

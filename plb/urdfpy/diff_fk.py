@@ -9,7 +9,7 @@ from plb.urdfpy import Robot, Joint, Link
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE = torch.device(DEVICE)
 
-TIME_INTERVAL = 24
+VELOCITY_SCALE = 1
 
 
 def _tensor_creator(creator: Callable[[Any], torch.Tensor], *value, **kwargs) -> torch.Tensor:
@@ -156,7 +156,7 @@ class DiffJoint:
             raise ValueError(f"Joint: {self._joint.name} expects {self._joint.action_dim}"+\
                 f"-dim velocity, but got {vel.shape if vel.shape else 1}-d velocity")
         
-        self.angle = self.angle + vel * TIME_INTERVAL
+        self.angle = self.angle + vel * VELOCITY_SCALE
         self.velocities.append(vel)
 
     def get_child_pose_diff(self) -> torch.Tensor:
@@ -243,7 +243,7 @@ class DiffLink:
         if pose.shape[-1] != 7:
             raise ValueError(f'pose must either be of shape 4,4 or 7, but got {pose.shape}')
         self.trajectory.append(pose)
-        self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / TIME_INTERVAL)
+        self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / VELOCITY_SCALE)
         return self.velocities[-1]
 
 
