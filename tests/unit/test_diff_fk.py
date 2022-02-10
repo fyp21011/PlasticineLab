@@ -124,17 +124,8 @@ def test_diff_link():
         for _ in range(RANDOM_ROUNDS):
             diffLink.move_link(_tensor_creator(torch.rand, (7,)))
             diffLink.move_link(_tensor_creator(torch.rand, (4,4)))
-        assert 2 * RANDOM_ROUNDS + 1 == len(diffLink.trajectory) == len(diffLink.velocities), \
-            f"unmatched: {2 * RANDOM_ROUNDS} {len(diffLink.trajectory)} {len(diffLink.velocities)}"
-
-        for i in range(1 + 2 * RANDOM_ROUNDS):
-            diffLink.trajectory[i].retain_grad()
-        for i in range(2 * RANDOM_ROUNDS, -1, -1):
-            diffLink.velocities[i].backward(torch.ones_like(diffLink.velocities[i]), retain_graph=True)
-            assert diffLink.trajectory[i].grad != None, \
-                f"backward from velocity {i} to pose {i}, {i-1}: pose{i} got NONE grad"
-            assert diffLink.trajectory[i - 1].grad != None, \
-                f"backward from velocity {i} to pose {i}, {i-1}: pose{i-1} got NONE grad"
+        assert 2 * RANDOM_ROUNDS + 1 == len(diffLink.trajectory), \
+            f"unmatched: {2 * RANDOM_ROUNDS} != {len(diffLink.trajectory)}"
 
 def test_diff_robot():
     robotDiff = DiffRobot.load('tests/data/ur5/ur5.urdf')
@@ -181,16 +172,7 @@ def test_diff_fk():
         assert len(joinVelocities) == len(robotDiff._actuated_joints)
         linkVelCnt = sum(1 for _ in robotDiff.link_fk_diff(joinVelocities))
         assert linkVelCnt == len(robotDiff._links), \
-            f"expecting {len(robotDiff._links)} link velocities, got {len(linkVelCnt[-1])}"
-
-    # 3) Tries to backpropagte along the time
-    for timeStep in range(41, 0, -1):
-        linkGrad = {
-            linkName: torch.ones((7,), device=DEVICE)
-            for linkName in robotDiff._link_map.keys()
-        }
-        for jointVelGrad in robotDiff.fk_gradient(timeStep, linkGrad):
-            assert jointVelGrad != None, f"NONE Gradient at time={timeStep}"         
+            f"expecting {len(robotDiff._links)} link velocities, got {len(linkVelCnt[-1])}"        
     
 def test_diff_fk_random_actions():
     rounds = 10
