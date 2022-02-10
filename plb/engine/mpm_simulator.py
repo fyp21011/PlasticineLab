@@ -1,6 +1,7 @@
 from typing import Iterable
-import taichi as ti
+
 import numpy as np
+import taichi as ti
 import torch
 import torch.nn as nn
 

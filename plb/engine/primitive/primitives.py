@@ -1,10 +1,11 @@
-import taichi as ti
-import numpy as np
 import yaml
 
-from plb.engine.controller import Controller, DiffFKWrapper
-from .primive_base import Primitive
+import numpy as np
+import taichi as ti
 from yacs.config import CfgNode as CN
+
+from ..controller import Controller, DiffFKWrapper
+from .primive_base import Primitive
 from .utils import qrot, qmul, w2quat
 
 @ti.func

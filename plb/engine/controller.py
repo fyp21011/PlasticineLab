@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod, abstractproperty
 from typing import Any, Callable, Union
-import numpy
 
+import numpy
 import torch
 
 

@@ -1,8 +1,10 @@
-import taichi as ti
 import numpy as np
-from .utils import length, qrot, qmul, w2quat
-from ...config.utils import make_cls_config
+import taichi as ti
+import torch
 from yacs.config import CfgNode as CN
+
+from ...config.utils import make_cls_config
+from .utils import length, qrot, qmul, w2quat
 from .utils import inv_trans, qrot
 
 
@@ -136,7 +138,7 @@ class Primitive:
                                   self.dtype), self.rotation[f])
 
     @ti.complex_kernel
-    def apply_robot_forward_kinemtaics(self, frameIdx: ti.i32, xyz_quat):
+    def apply_robot_forward_kinemtaics(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
         """ The robot's foward kinematics computes the target postion and
         rotation of each primitive geometry for each substep. The method
         applies this computation results to the primitive geometries.
@@ -160,8 +162,13 @@ class Primitive:
         self.rotation[frameIdx + 1] = targetQuat
 
     @ti.complex_kernel_grad(apply_robot_forward_kinemtaics)
-    def forward_kinematics_gradient_backward_2_robot(self, frameIdx: ti.i32, xyz_quat):
-        pass
+    def forward_kinematics_gradient_backward_2_robot(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
+        grads = torch.zeros_like(xyz_quat, device = xyz_quat.device)
+        for i in range(3):
+            grads[i] = self.position.grad[frameIdx + 1][i]
+        for i in range(4):
+            grads[3 + i] = self.rotation.grad[frameIdx + 1][i]
+        xyz_quat.backward(grads)
 
 
     # state set and copy ...

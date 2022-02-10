@@ -1,5 +1,4 @@
 from collections import OrderedDict
-import copy
 from typing import List, Dict, Iterable, Union, Generator
 import warnings
 import yaml
@@ -7,12 +6,11 @@ import yaml
 import numpy as np
 import torch
 from yacs.config import CfgNode as CN
+
 from plb.config.utils import make_cls_config
 from plb.engine.controller import Controller, DiffFKWrapper
-
 from plb.urdfpy import DiffRobot, Robot, Collision
 from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
-from plb.urdfpy.diff_fk import DEVICE
 
 ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
@@ -75,6 +73,7 @@ class RobotsController(Controller):
     
     @property
     def forward_kinematics(self):
+        # inherited from Controller
         return self._diff_fk
 
     @classmethod
@@ -240,14 +239,7 @@ class RobotsController(Controller):
         return jointActions
     
     def set_action(self, step_idx: int, n_substep: int, actions: torch.Tensor):
-        """ Set the actions for the robots
-
-        Params
-        ------
-        step_idx: the step index
-        n_substep: how many substep each step contains
-        actions: the actions to be applied on the step_idx step
-        """
+        # inherited from Controller
         while self.current_step <= (step_idx + 1) * n_substep:
             dim_counter = 0
             for robot, action_dim in zip(self.robots, self.robot_action_dims):
@@ -288,16 +280,10 @@ class RobotsController(Controller):
                     link.trajectory[step_idx]
                 )
 
-            
     def get_step_grad(self, s: int) -> torch.Tensor:
+        # inherited from Controller
         actionGrad = []
-        for robot, link2primitive in zip(self.robots, self.link_2_primitives):
-            linkGrad = {}
-            for linkName, primitive in link2primitive.items():
-                linkGrad[linkName] = np.concatenate((
-                    primitive.position[s + 1].to_numpy().reshape(-1),
-                    primitive.rotation[s + 1].to_numpy().reshape(-1)
-                ))
-            for grad in robot.fk_gradient(s, linkGrad):
+        for robot in self.robots:
+            for grad in robot.fk_gradient(s):
                 actionGrad.append(grad)
         return torch.cat(actionGrad)

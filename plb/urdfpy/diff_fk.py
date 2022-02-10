@@ -157,6 +157,7 @@ class DiffJoint:
                 f"-dim velocity, but got {vel.shape if vel.shape else 1}-d velocity")
         
         self.angle = self.angle + vel * VELOCITY_SCALE
+        vel.retain_grad()
         self.velocities.append(vel)
 
     def get_child_pose_diff(self) -> torch.Tensor:
@@ -218,33 +219,29 @@ class DiffLink:
             raise ValueError(f"initial pose of a link MUST be a 4-by-4 matrix or a 7-dim vector, got {pose.shape}")
         self.trajectory: List[torch.Tensor] = [pose]
         """A list of link's 7-D, i.e., xyz+quat, position along the time"""
-        self.velocities: List[torch.Tensor] = [
-            _tensor_creator(torch.zeros_like, self.trajectory[0])
-        ]
+        # self.velocities: List[torch.Tensor] = [
+        #     _tensor_creator(torch.zeros_like, self.trajectory[0])
+        # ]
 
     
     def __getattr__(self, name):
         return getattr(self._link, name)
 
-    def move_link(self, pose: torch.Tensor) -> torch.Tensor:
+    def move_link(self, pose: torch.Tensor):
         """ Add a new pose to the link's trajectory
 
         Params
         ------
         pose: a tensor of shape (4,4) --- transformation matrix
             or a tensor of shape (7,) --- XYZ + Quat
-        
-        Return
-        ------
-        The velocity necessary to move the link toward the target
         """
         if pose.shape == (4, 4):
             pose = _matrix_2_xyz_quat(pose)
         if pose.shape[-1] != 7:
             raise ValueError(f'pose must either be of shape 4,4 or 7, but got {pose.shape}')
         self.trajectory.append(pose)
-        self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / VELOCITY_SCALE)
-        return self.velocities[-1]
+        # self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / VELOCITY_SCALE)
+        # return self.velocities[-1]
 
 
 class DiffRobot(Robot):
@@ -305,29 +302,19 @@ class DiffRobot(Robot):
         }
     
     
-    def fk_gradient(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]) -> Generator[torch.Tensor, None, None]:
-        """ Backward the gradients from links' velocity at one moment to
-        the actuated joints' velocities, i.e. reverse the FK path
+    def fk_gradient(self, timeStep: int) -> Generator[torch.Tensor, None, None]:
+        """ Get the joint velocities's gradient
+
+        NOTE: this must be called AFTER the backpropagation of forward
+        kinematics is done, i.e. `Controller.forward_kinematics.grad()`
 
         Params
         ------
         timeStep: determine at which moment the gradient is propagated to
-        linkGrad: from link's name to its velocity gradient
 
         Returns
         -------
         A sequence of gradients of the joints' velocities
-        """
-        for diffJoint in self._actuated_joints:
-            if len(diffJoint.velocities) < timeStep:
-                raise ValueError(f"{diffJoint.name} does not have {timeStep} time steps")
-            diffJoint.velocities[timeStep].retain_grad()
-
-        for linkName, gradient in linkGrad.items():
-            diffLink = self._link_map[linkName]
-            if len(diffLink.velocities) < timeStep:
-                raise ValueError(f"{diffLink.name} does not have {timeStep} time steps")
-            diffLink.velocities[timeStep].backward(gradient, retain_graph=True)
-        
+        """      
         for diffJoint in self._actuated_joints:
             yield diffJoint.velocities[timeStep].grad
