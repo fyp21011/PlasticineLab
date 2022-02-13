@@ -133,10 +133,10 @@ class MLP:
             for j in range(self.dims[i+1]):
                 self.hidden_prev[i+1][t, j] = 0.
 
-    @ti.complex_kernel
+    @ti.ad.grad_replaced
     def clear_no_grad(self, t):
         self.clear_kernel(t)
-    @ti.complex_kernel_grad(clear_no_grad)
+    @ti.ad.grad_for(clear_no_grad)
     def clear_no_grad_grad(self, t):
         pass
 

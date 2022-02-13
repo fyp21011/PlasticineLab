@@ -183,6 +183,7 @@ class MPMSimulator:
                 self.grid_v_in[base + offset] += weight * (self.p_mass * self.v[f, p] + affine @ dpos)
                 self.grid_m[base + offset] += weight * self.p_mass
 
+    @ti.func
     def stencil_range(self):
         return ti.ndrange(*((3, ) * self.dim))
 
@@ -242,7 +243,7 @@ class MPMSimulator:
             self.x[f + 1, p] = ti.max(ti.min(self.x[f, p] + self.dt * self.v[f + 1, p], 1.-3*self.dx), 0.)
             # advection and preventing it from overflow
 
-    @ti.complex_kernel
+    @ti.ad.grad_replaced
     def substep(self, s):
         # centroids[None] = [0, 0] # manually clear the centroids...
         self.clear_grid()
@@ -257,7 +258,7 @@ class MPMSimulator:
         self.g2p(s)
 
 
-    @ti.complex_kernel_grad(substep)
+    @ti.ad.grad_for(substep)
     def substep_grad(self, s):
         self.clear_grid()
         self.clear_SVD_grad()  # clear the svd grid
@@ -393,12 +394,12 @@ class MPMSimulator:
 
 
     """
-    @ti.complex_kernel
+    @ti.ad.grad_replaced
     def clear_and_compute_grid_m(self, f):
         self.grid_m.fill(0)
         self.compute_grid_m_kernel(f)
 
-    @ti.complex_kernel_grad(clear_and_compute_grid_m)
+    @ti.ad.grad_for(clear_and_compute_grid_m)
     def clear_and_compute_grid_m_grad(self, f):
         self.compute_grid_m_kernel.grad(f)
     """
