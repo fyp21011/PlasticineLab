@@ -9,8 +9,6 @@ from plb.urdfpy import DiffRobot, Link, FK_CFG_Type, Mesh
 
 taichi.init()
 
-#TODO: modify the sections where set_robot_action is called
-
 def test_deflatten_robot_actions():
     robot = DiffRobot.load('tests/data/ur5/ur5.urdf')
     robotActionDim = sum((

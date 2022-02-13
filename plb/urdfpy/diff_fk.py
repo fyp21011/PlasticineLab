@@ -317,4 +317,4 @@ class DiffRobot(Robot):
         A sequence of gradients of the joints' velocities
         """      
         for diffJoint in self._actuated_joints:
-            yield diffJoint.velocities[timeStep].grad
+            yield diffJoint.velocities[timeStep].grad.reshape((-1))

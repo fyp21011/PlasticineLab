@@ -155,9 +155,10 @@ class Primitive:
         targetXYZ = xyz_quat[:3]
         targetQuat = xyz_quat[3:]
 
-        self.position[frameIdx + 1] = max(
-            min(targetXYZ, self.xyz_limit[1]),
-            self.xyz_limit[0]
+        self.position[frameIdx + 1] = np.clip(
+            targetXYZ,
+            self.xyz_limit[0].value,
+            self.xyz_limit[1].value
         )
         self.rotation[frameIdx + 1] = targetQuat
 
@@ -168,7 +169,7 @@ class Primitive:
             grads[i] = self.position.grad[frameIdx + 1][i]
         for i in range(4):
             grads[3 + i] = self.rotation.grad[frameIdx + 1][i]
-        xyz_quat.backward(grads)
+        xyz_quat.backward(grads, retain_graph=True)
 
 
     # state set and copy ...

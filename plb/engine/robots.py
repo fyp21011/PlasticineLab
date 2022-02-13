@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from typing import List, Dict, Iterable, Union, Generator
 import warnings
 import yaml
@@ -9,7 +8,8 @@ from yacs.config import CfgNode as CN
 
 from plb.config.utils import make_cls_config
 from plb.engine.controller import Controller, DiffFKWrapper
-from plb.urdfpy import DiffRobot, Robot, Collision
+from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
+from plb.urdfpy.diff_fk import _tensor_creator
 from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
 
 ROBOT_LINK_DOF = 7
@@ -162,7 +162,7 @@ class RobotsController(Controller):
             joint.action_dim
             for joint in robot.actuated_joints
         ))
-        self.link_2_primitives.append(OrderedDict())
+        self.link_2_primitives.append({})
         for linkName, link in robot.link_map.items():
             if len(link.collisions) > 1:
                 raise ValueError(f"{linkName} has multiple collision")
@@ -241,12 +241,18 @@ class RobotsController(Controller):
     def set_action(self, step_idx: int, n_substep: int, actions: torch.Tensor):
         # inherited from Controller
         while self.current_step <= (step_idx + 1) * n_substep:
+            if isinstance(actions, torch.Tensor):
+                substep_actions = actions.clone().detach().requires_grad_(True).to(DEVICE)
+            elif isinstance(actions, np.ndarray):
+                substep_actions = torch.from_numpy(actions).requires_grad_(True).to(DEVICE)
+            else:
+                substep_actions = torch.tensor(actions,
+                    dtype=torch.float64, requires_grad=True, device=DEVICE)
             dim_counter = 0
             for robot, action_dim in zip(self.robots, self.robot_action_dims):
-                jointVelocity = self._deflatten_robot_actions(robot, actions[dim_counter : dim_counter + action_dim])
+                jointVelocity = self._deflatten_robot_actions(robot, 
+                    substep_actions[dim_counter : dim_counter + action_dim])
                 dim_counter += action_dim
-                # NOTE: the primitive dict is an ordered dict, whose key sequence is the very sequence 
-                #       of the primitives being yielded during the robot being appended
                 robot.link_fk_diff(jointVelocity)
             self.current_step += 1
 
@@ -261,7 +267,8 @@ class RobotsController(Controller):
         step_idx: the step index
         """
         for robot, primitive_dict in zip(self.robots, self.link_2_primitives):
-            for name, link in robot._link_map:
+            for name, link in robot._link_map.items():
+                if name not in primitive_dict: continue
                 primitive_dict[name].apply_robot_forward_kinemtaics(
                     step_idx, 
                     link.trajectory[step_idx]
@@ -274,16 +281,18 @@ class RobotsController(Controller):
         `self.forward_kinematics.grad(s)` invokes this method
         """
         for robot, primitive_dict in zip(reversed(self.robots), reversed(self.link_2_primitives)):
-            for name, link in robot._link_map:
+            for name, link in reversed(robot._link_map.items()):
+                if name not in primitive_dict: continue
                 primitive_dict[name].apply_robot_forward_kinemtaics.grad(
-                    step_idx, 
-                    link.trajectory[step_idx]
+                    self     = primitive_dict[name],
+                    frameIdx = step_idx, 
+                    xyz_quat = link.trajectory[step_idx]
                 )
 
     def get_step_grad(self, s: int) -> torch.Tensor:
         # inherited from Controller
         actionGrad = []
         for robot in self.robots:
-            for grad in robot.fk_gradient(s):
+            for grad in robot.fk_gradient(s + 1):
                 actionGrad.append(grad)
         return torch.cat(actionGrad)
