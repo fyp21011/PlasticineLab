@@ -254,7 +254,7 @@ class Renderer:
                     for i in ti.static(range(len(self.primitives))):
                         if sdf_id == i:
                             normal = ti.cast(self.primitives[i].normal(0, o + dist*d), ti.f32)
-                            color = self.primitives[i].color
+                            color = self.primitives[i].color[None]
                     roughness = 0.
                     material = DIFFUSE
 
@@ -430,15 +430,16 @@ class Renderer:
         ti.block_dim(128)
         #print(self.sample_sdf(self.bbox[0] + 0.05))
         #return
-        mat = ti.Matrix(np.array([
-            [np.cos(self.camera_rot[1]), 0.0000000, np.sin(self.camera_rot[1])],
+        mat = ti.Matrix([
+            [ti.cos(self.camera_rot[1]), 0.0000000, ti.sin(self.camera_rot[1])],
             [0.0000000, 1.0000000, 0.0000000],
-            [-np.sin(self.camera_rot[1]), 0.0000000, np.cos(self.camera_rot[1])],
-        ]) @ np.array([
+            [-ti.sin(self.camera_rot[1]), 0.0000000, ti.cos(self.camera_rot[1])],
+        ]) @ ti.Matrix([
             [1.0000000, 0.0000000, 0.0000000],
-            [0.0000000, np.cos(self.camera_rot[0]), np.sin(self.camera_rot[0])],
-            [0.0000000, -np.sin(self.camera_rot[0]), np.cos(self.camera_rot[0])],
-        ]))
+            [0.0000000, ti.cos(self.camera_rot[0]), ti.sin(self.camera_rot[0])],
+            [0.0000000, -ti.sin(self.camera_rot[0]), ti.cos(self.camera_rot[0])],
+        ])
+        
         for u, v in self.color_buffer:
             pos = self.camera_pos
             d = ti.Vector([
