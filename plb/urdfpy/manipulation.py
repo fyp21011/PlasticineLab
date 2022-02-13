@@ -70,7 +70,7 @@ class Robot(URDFType):
         self._materials = list(materials)
 
         # Set up private helper maps from name to value
-        self._link_map = {}
+        self._link_map = OrderedDict()
         self._joint_map: Dict[str, Joint] = {}
         self._transmission_map = {}
         self._material_map = {}
