@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from typing import Any, Callable, Union
 
 import numpy
@@ -45,12 +45,34 @@ class DiffFKWrapper:
             self._grad_handler(substep)
 
 class Controller(ABC):
-    @abstractproperty
-    def forward_kinematics(self) -> DiffFKWrapper:
+    def __init__(self) -> None:
+        self.forward_kinematics = DiffFKWrapper(self._forward_kinematics, self._forward_kinematics_grad)
         """ For both forward kinematics and the backpropagation
 
         * `self.forward_kinematics(s)`: applies the FK till time `s`
         * `self.forward_kinematics.grad(s)`: backpropagation from time `s`
+        """
+
+    @abstractmethod
+    def _forward_kinematics(self, step_idx: int) -> None:
+        """ Compute the forward kinematics based on previously set actions
+        through `self.set_action`. 
+
+        Wrapped in the `self.forward_kinematics` callable property, such that
+        `self.forward_kinematics(s)` invokes this method
+
+        Params
+        ------
+        step_idx: the step index
+        """
+        pass
+
+    @abstractmethod
+    def _forward_kinematics_grad(self, step_idx: int):
+        """ Gradient method for `self._forward_kinematics`
+
+        Wrapped in the `self.forward_kinematics` , such that
+        `self.forward_kinematics.grad(s)` invokes this method
         """
         pass
 

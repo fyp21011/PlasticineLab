@@ -7,9 +7,8 @@ import torch
 from yacs.config import CfgNode as CN
 
 from plb.config.utils import make_cls_config
-from plb.engine.controller import Controller, DiffFKWrapper
+from plb.engine.controller import Controller
 from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
-from plb.urdfpy.diff_fk import _tensor_creator
 from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
 
 ROBOT_LINK_DOF = 7
@@ -69,12 +68,6 @@ class RobotsController(Controller):
         * the first tree, i.e., `self.flatten_actions[:3]` are executed
         * `self.flatten_actions[3]` are the one to be executed next
         """
-        self._diff_fk = DiffFKWrapper(self._forward_kinematics, self._forward_kinematics_grad)
-    
-    @property
-    def forward_kinematics(self):
-        # inherited from Controller
-        return self._diff_fk
 
     @classmethod
     def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: Primitives) -> "RobotsController":
@@ -257,15 +250,7 @@ class RobotsController(Controller):
             self.current_step += 1
 
     def _forward_kinematics(self, step_idx: int):
-        """ Applies the forward kinematics result to primitives
-
-        wrapped in the `self.forward_kinematics` callable property, such that
-        `self.forward_kinematics(s)` invokes this method
-
-        Params
-        ------
-        step_idx: the step index
-        """
+        # inherited from Controller
         for robot, primitive_dict in zip(self.robots, self.link_2_primitives):
             for name, link in robot._link_map.items():
                 if name not in primitive_dict: continue
@@ -275,11 +260,7 @@ class RobotsController(Controller):
                 )
 
     def _forward_kinematics_grad(self, step_idx: int):
-        """ Gradient method for `self._forward_kinematics`
-
-        wrapped in the `self.forward_kinematics` callable property, such that
-        `self.forward_kinematics.grad(s)` invokes this method
-        """
+        # inherited from Controller
         for robot, primitive_dict in zip(reversed(self.robots), reversed(self.link_2_primitives)):
             for name, link in reversed(robot._link_map.items()):
                 if name not in primitive_dict: continue

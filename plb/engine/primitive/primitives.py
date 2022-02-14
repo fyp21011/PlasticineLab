@@ -4,7 +4,7 @@ import numpy as np
 import taichi as ti
 from yacs.config import CfgNode as CN
 
-from ..controller import Controller, DiffFKWrapper
+from ..controller import Controller
 from .primive_base import Primitive
 from .utils import qrot, qmul, w2quat
 
@@ -283,13 +283,6 @@ class Primitives(Controller):
         Those primitives created & controlled by robots
         will not be counted here
         """
-
-        self._diff_fk = DiffFKWrapper(self._forward_kinematics,
-            self._forward_kinematics_grad)
-
-    @property
-    def forward_kinematics(self):
-        return self._diff_fk
 
     def _forward_kinematics(self, s):
         for i in range(self.primitives.n):
