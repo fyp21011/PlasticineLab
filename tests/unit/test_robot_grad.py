@@ -9,13 +9,12 @@ taichi.init()
 
 def test_robot_and_primitives():
     primitives = Primitives([]) # empty primitives
-    # robot = DiffRobot.load("tests/data/ur5/ur5_primitive.urdf")
-    robot = DiffRobot.load("tests/data/ur5/ur5.urdf")
+    robot = DiffRobot.load("tests/data/ur5/ur5_primitive.urdf")
     rc = RobotsController()
     for shape in rc.append_robot(robot, (0.0, 0.0, 0.0)):
         primitives.primitives.append(shape)
     assert primitives.n == 0, f"No free primitives expected, but got {primitives.n}"
-    assert len(primitives.primitives) == 1, \
+    assert len(primitives.primitives) == 8, \
         f"8 primitives from the robot is expected, but got {len(primitives.primitives)}"
 
     action_dims = primitives.action_dims.copy()
