@@ -16,7 +16,10 @@ install_requires = [
     'imageio',
     'open3d',
     'lxml',
-    'networkx'
+    'networkx',
+    'future-fstrings',
+    'bpy',
+    'bpy_post_install'
 ]
 
 setup(name='plb',
