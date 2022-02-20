@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 from typing import Any, Callable, Union
 
 import numpy
@@ -52,6 +52,13 @@ class Controller(ABC):
         * `self.forward_kinematics(s)`: applies the FK till time `s`
         * `self.forward_kinematics.grad(s)`: backpropagation from time `s`
         """
+
+    @abstractproperty
+    def not_empty(self) -> bool:
+        """ Whether the controller controls something
+        or nothing (dummy controller)
+        """
+        pass
 
     @abstractmethod
     def _forward_kinematics(self, step_idx: int) -> None:

@@ -69,6 +69,10 @@ class RobotsController(Controller):
         * `self.flatten_actions[3]` are the one to be executed next
         """
 
+    @property
+    def not_empty(self) -> bool:
+        return len(self.robots) > 0
+
     @classmethod
     def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: Primitives) -> "RobotsController":
         """ Parse the YAML configuration node for `Robots`

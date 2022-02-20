@@ -293,6 +293,10 @@ class Primitives(Controller):
             self.primitives[i].forward_kinematics.grad(s)
 
     @property
+    def not_empty(self) -> bool:
+        return len(self.primitives) > 0
+
+    @property
     def action_dim(self):
         return self.action_dims[-1]
 

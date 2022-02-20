@@ -506,10 +506,13 @@ class MPMSimulator:
 
         # This get the gradient for a action
         actuation_grad = self.fpc.get_step_grad(cur) # The free primitives' gradient
-        joint_velocity_grad = self.rc.get_step_grad(cur) # The joint-level primitives
+        if self.rc.not_empty:
+            joint_velocity_grad = self.rc.get_step_grad(cur) # The joint-level primitives
+            clipped_actuation_grad = torch.cat((torch.from_numpy(actuation_grad), joint_velocity_grad))
+        else:
+            clipped_actuation_grad = torch.from_numpy(actuation_grad)
 
         # grad preprocessing
-        clipped_actuation_grad = torch.cat((torch.from_numpy(actuation_grad), joint_velocity_grad))
         # nn.utils.clip_grad_norm_(clipped_actuation_grad, max_norm=1.0, norm_type=2)
         nn.utils.clip_grad_value_(clipped_actuation_grad, clip_value=1.0)
 
