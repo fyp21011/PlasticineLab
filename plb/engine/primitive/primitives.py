@@ -262,6 +262,7 @@ class Box(Primitive):
 
 class Primitives(Controller):
     def __init__(self, cfgs, max_timesteps=1024):
+        super().__init__()
         outs = []
         self.primitives = []
         for i in cfgs:

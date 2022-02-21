@@ -52,6 +52,7 @@ class RobotsController(Controller):
     """ A controller that maps robot to primitive links
     """
     def __init__(self) -> None:
+        super().__init__()
         self.robots: List[DiffRobot] = []
         self.robot_action_dims: List[int] = []
         self.link_2_primitives: List[Dict[str, Primitive]] = []
@@ -112,7 +113,14 @@ class RobotsController(Controller):
 
     @classmethod
     def _urdf_collision_to_primitive(cls, collision: Collision, offset: np.ndarray, pose: torch.Tensor) -> Union[Primitive, None]:
-        """
+        """ Converting the URDF's collision geometry to primitive
+
+        Params
+        ------
+        collision: the URDF robot's collision geometry
+        offset: the offset of the robot's position
+        pose: the pose matrix (4 * 4) of this geometry, which
+            records the initial position of the geometry
         """
         if collision.geometry.box is not None:
             linkPrimitive = Box(cfg = _generate_primitive_config(
