@@ -286,11 +286,11 @@ class Primitives(Controller):
         """
 
     def _forward_kinematics(self, s):
-        for i in range(self.primitives.n):
+        for i in range(self.n):
             self.primitives[i].forward_kinematics(s)
 
     def _forward_kinematics_grad(self, s):
-        for i in range(self.primitives.n-1, -1, -1):
+        for i in range(self.n-1, -1, -1):
             self.primitives[i].forward_kinematics.grad(s)
 
     @property
