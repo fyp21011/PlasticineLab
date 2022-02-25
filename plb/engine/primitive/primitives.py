@@ -1,8 +1,11 @@
-import taichi as ti
-import numpy as np
 import yaml
-from .primive_base import Primitive
+
+import numpy as np
+import taichi as ti
 from yacs.config import CfgNode as CN
+
+from ..controller import Controller
+from .primive_base import Primitive
 from .utils import qrot, qmul, w2quat
 
 @ti.func
@@ -257,10 +260,9 @@ class Box(Primitive):
         return cfg
 
 
-
-
-class Primitives:
+class Primitives(Controller):
     def __init__(self, cfgs, max_timesteps=1024):
+        super().__init__()
         outs = []
         self.primitives = []
         for i in cfgs:
@@ -277,6 +279,23 @@ class Primitives:
             self.primitives.append(primitive)
             self.action_dims.append(self.action_dims[-1] + primitive.action_dim)
         self.n = len(self.primitives)
+        """number of free primitives
+        
+        Those primitives created & controlled by robots
+        will not be counted here
+        """
+
+    def _forward_kinematics(self, s):
+        for i in range(self.n):
+            self.primitives[i].forward_kinematics(s)
+
+    def _forward_kinematics_grad(self, s):
+        for i in range(self.n-1, -1, -1):
+            self.primitives[i].forward_kinematics.grad(s)
+
+    @property
+    def not_empty(self) -> bool:
+        return len(self.primitives) > 0
 
     @property
     def action_dim(self):
@@ -302,7 +321,7 @@ class Primitives:
 
     def get_step_grad(self,n):
         grads = []
-        for i in range(self.n):
+        for i in range(self.n): # only the FREE PRIMITIVES
             grad = self.primitives[i].get_step_action_grad(n)
             if grad is not None:
                 grads.append(grad)

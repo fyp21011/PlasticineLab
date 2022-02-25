@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from typing import List, Dict, Iterable, Union, Generator
 import warnings
 import yaml
@@ -6,9 +5,10 @@ import yaml
 import numpy as np
 import torch
 from yacs.config import CfgNode as CN
-from plb.config.utils import make_cls_config
 
-from plb.urdfpy import DiffRobot, Robot, Collision
+from plb.config.utils import make_cls_config
+from plb.engine.controller import Controller
+from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
 from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
 
 ROBOT_LINK_DOF = 7
@@ -48,10 +48,11 @@ def _generate_primitive_config(rawPose: torch.Tensor, offset:Iterable[float], sh
         else:                     configDict[key] = str(value)
     return CN(init_dict=configDict)
 
-class RobotsController:
+class RobotsController(Controller):
     """ A controller that maps robot to primitive links
     """
     def __init__(self) -> None:
+        super().__init__()
         self.robots: List[DiffRobot] = []
         self.robot_action_dims: List[int] = []
         self.link_2_primitives: List[Dict[str, Primitive]] = []
@@ -59,6 +60,19 @@ class RobotsController:
         corresponds to the collision geometry of the link named as `LinkName`
         in `RobotIdx`'s robot
         """
+        self.current_step = 0
+        """pointer to the current step
+
+        Example
+        -------
+        `self.current_step = 3` ==> 
+        * the first tree, i.e., `self.flatten_actions[:3]` are executed
+        * `self.flatten_actions[3]` are the one to be executed next
+        """
+
+    @property
+    def not_empty(self) -> bool:
+        return len(self.robots) > 0
 
     @classmethod
     def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: Primitives) -> "RobotsController":
@@ -99,7 +113,14 @@ class RobotsController:
 
     @classmethod
     def _urdf_collision_to_primitive(cls, collision: Collision, offset: np.ndarray, pose: torch.Tensor) -> Union[Primitive, None]:
-        """
+        """ Converting the URDF's collision geometry to primitive
+
+        Params
+        ------
+        collision: the URDF robot's collision geometry
+        offset: the offset of the robot's position
+        pose: the pose matrix (4 * 4) of this geometry, which
+            records the initial position of the geometry
         """
         if collision.geometry.box is not None:
             linkPrimitive = Box(cfg = _generate_primitive_config(
@@ -146,7 +167,7 @@ class RobotsController:
             joint.action_dim
             for joint in robot.actuated_joints
         ))
-        self.link_2_primitives.append(OrderedDict())
+        self.link_2_primitives.append({})
         for linkName, link in robot.link_map.items():
             if len(link.collisions) > 1:
                 raise ValueError(f"{linkName} has multiple collision")
@@ -189,15 +210,18 @@ class RobotsController:
 
         For example, if a robot has four joints, whose action spaces are 
         (1,1), (2,1), (6,1) and (1,1). Assume the input action list is
-        [0.121, 0.272, 0.336, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.57]. It will therefore
-        be deflattened to
+        ```
+        [0.121, 0.272, 0.336, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.57]
+        ``` 
+        It will therefore be deflattened to
+        ```
         [
             0.121, 
             [0.272, 0.336], 
             [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
             1.57
         ]
-
+        ```
         Params
         ------
         robot: the urdf-loaded robot, for whom the flatten actions will be recovered
@@ -219,41 +243,49 @@ class RobotsController:
 
         return jointActions
     
-    def set_robot_actions(self, envActions: torch.Tensor, primitiveCnt: int = 0):
-        """ Set the actions for the robot.
+    def set_action(self, step_idx: int, n_substep: int, actions: torch.Tensor):
+        # inherited from Controller
+        while self.current_step <= (step_idx + 1) * n_substep:
+            if isinstance(actions, torch.Tensor):
+                substep_actions = actions.clone().detach().requires_grad_(True).to(DEVICE)
+            elif isinstance(actions, np.ndarray):
+                substep_actions = torch.from_numpy(actions).requires_grad_(True).to(DEVICE)
+            else:
+                substep_actions = torch.tensor(actions,
+                    dtype=torch.float64, requires_grad=True, device=DEVICE)
+            dim_counter = 0
+            for robot, action_dim in zip(self.robots, self.robot_action_dims):
+                jointVelocity = self._deflatten_robot_actions(robot, 
+                    substep_actions[dim_counter : dim_counter + action_dim])
+                dim_counter += action_dim
+                robot.link_fk_diff(jointVelocity)
+            self.current_step += 1
 
-        Params
-        ------
-        envActions: a list of all the actions in this environment, the first 
-            several elements of which might be irrelevant to the environment
-        primitiveCnt: the number of the irrelevant actions
-        """
-        totalActions = len(envActions)
-        assert primitiveCnt <= totalActions
-        dimCounter = primitiveCnt
-        for robot, actionDims, primitiveDict in zip(self.robots, self.robot_action_dims, self.link_2_primitives):
-            jointVelocity = self._deflatten_robot_actions(
-                robot,
-                envActions[dimCounter : dimCounter + actionDims]
-            )
-            dimCounter += actionDims
-            # NOTE: the primitiveDict is an ordered dict, whose key sequence is the very sequence 
-            #       of the primitives being yielded during the robot being appended
-            result = []
-            for linkVelocity in robot.link_fk_diff(jointVelocity, primitiveDict.keys()):
-                result.append(linkVelocity.detach().cpu().numpy())
-            return np.concatenate(result)
-            
-    def get_robot_action_grad(self, s, n):
+    def _forward_kinematics(self, step_idx: int):
+        # inherited from Controller
+        for robot, primitive_dict in zip(self.robots, self.link_2_primitives):
+            for name, link in robot._link_map.items():
+                if name not in primitive_dict: continue
+                primitive_dict[name].apply_robot_forward_kinemtaics(
+                    step_idx, 
+                    link.trajectory[step_idx]
+                )
+
+    def _forward_kinematics_grad(self, step_idx: int):
+        # inherited from Controller
+        for robot, primitive_dict in zip(reversed(self.robots), reversed(self.link_2_primitives)):
+            for name, link in reversed(robot._link_map.items()):
+                if name not in primitive_dict: continue
+                primitive_dict[name].apply_robot_forward_kinemtaics.grad(
+                    self     = primitive_dict[name],
+                    frameIdx = step_idx, 
+                    xyz_quat = link.trajectory[step_idx]
+                )
+
+    def get_step_grad(self, s: int) -> torch.Tensor:
+        # inherited from Controller
         actionGrad = []
-        for robot, primitiveDict in zip(self.robots, self.link_2_primitives):
-            actionGrad.append(grad for grad in robot.backward(s, linkGrad={
-                linkName: primitiveShape.get_action_grad(s, n).to_numpy().reshape(-1)
-                for linkName, primitiveShape in primitiveDict.items()
-            }))
+        for robot in self.robots:
+            for grad in robot.fk_gradient(s + 1):
+                actionGrad.append(grad)
         return torch.cat(actionGrad)
-                
-
-    def get_robot_action_step_grad(self, s, n):
-        # TODO: figure out the differences between this one and the upper one
-        pass

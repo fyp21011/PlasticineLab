@@ -26,16 +26,16 @@ class TaichiEnv:
 
         self.cfg = cfg.ENV
         self.primitives = Primitives(cfg.PRIMITIVES)
-        self.robots_controller = RobotsController.parse_config(cfg.ROBOTS, self.primitives)
+        controller = RobotsController.parse_config(cfg.ROBOTS, self.primitives)
         self.action_dims = self.primitives.action_dims.copy()
-        self.robots_controller.export_action_dims(to = self.action_dims)
+        controller.export_action_dims(to = self.action_dims)
         self.shapes = Shapes(cfg.SHAPES)
         self.init_particles, self.particle_colors = self.shapes.get()
 
         cfg.SIMULATOR.defrost()
         self.n_particles = cfg.SIMULATOR.n_particles = len(self.init_particles)
 
-        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitives)
+        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitives, controller)
         self.renderer = Renderer(cfg.RENDERER, self.primitives)
 
         if nn:
@@ -103,13 +103,8 @@ class TaichiEnv:
         return np.concatenate((np.concatenate((x[::step_size], v[::step_size]), axis=-1).reshape(-1), s.reshape(-1)))
 
     def step(self, action=None):
-        if action is not None:
-            action = np.r_[
-                action[:self.primitives.action_dim].detach().cpu().numpy() if isinstance(action, torch.Tensor) \
-                    else np.array(action[:self.primitives.action_dim]),
-                self.robots_controller.set_robot_actions(action, self.primitives.action_dim)
-            ]
-
+        if isinstance(action, torch.Tensor):
+            action = action.detach()
         self.simulator.step(is_copy=self._is_copy, action=action)
 
     def compute_loss(self):

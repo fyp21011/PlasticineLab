@@ -44,7 +44,7 @@ def test_deflatten_robot_actions():
 
 def test_single_robot():
     rc = RobotsController()
-    robot = DiffRobot.load('tests/data/ur5/ur5.urdf')
+    robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
 
 
     # test append robot
@@ -84,13 +84,13 @@ def test_single_robot():
         f" but expecting [0, 3, 6, 9, {robotActionDim}]"
     
     # test set robot actions
-    envAction = [0.33, 0.66, 0.72] + [
+    envAction = [
         torch.rand((1,), device='cuda', dtype=torch.float64, requires_grad=True)
         for _ in range(robotActionDim)
     ]
-    rc.set_robot_actions(envAction, 3)
+    rc.set_action(0, 1, envAction)
     poseA: Dict[Link, Any] = robot._current_cfg
-    robot.link_fk(envAction[3:], cfgType=FK_CFG_Type.angle)
+    robot.link_fk(envAction, cfgType=FK_CFG_Type.angle)
     poseB: Dict[Link, Any] = robot._current_cfg
     poseA = {
         link.name : pose
@@ -108,8 +108,8 @@ def test_single_robot():
 
 def test_dual_robot():
     rc = RobotsController()
-    robotA = DiffRobot.load('tests/data/ur5/ur5.urdf')
-    robotB = DiffRobot.load('tests/data/ur5/ur5.urdf')
+    robotA = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
+    robotB = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
     
     linkCnt = sum((
         1 for _ in rc.append_robot(robotA)
@@ -158,13 +158,13 @@ def test_dual_robot():
         f"after appending robot's action dims, the action_dims become {action_dims},"+\
         f" but expecting [0, 3, 6, 9, {robotActionDim}, {robotActionDim}]"
     
-    envAction = [0.33, 0.66, 0.72] + [
+    envAction = [
         torch.rand((1,), device='cuda', dtype=torch.float64, requires_grad=True)
         for _ in range(robotActionDim * 2)
     ]
-    rc.set_robot_actions(envAction, 3)
+    rc.set_action(0, 1, envAction)
     poseA: Dict[Link, Any] = robotB._current_cfg
-    robotB.link_fk(envAction[3 + robotActionDim:], cfgType=FK_CFG_Type.angle)
+    robotB.link_fk(envAction[robotActionDim:], cfgType=FK_CFG_Type.angle)
     poseB: Dict[Link, Any] = robotB._current_cfg
     poseA = {
         link.name : pose

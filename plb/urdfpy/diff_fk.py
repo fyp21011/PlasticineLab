@@ -9,7 +9,7 @@ from plb.urdfpy import Robot, Joint, Link
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE = torch.device(DEVICE)
 
-TIME_INTERVAL = 24
+VELOCITY_SCALE = 1
 
 
 def _tensor_creator(creator: Callable[[Any], torch.Tensor], *value, **kwargs) -> torch.Tensor:
@@ -155,18 +155,9 @@ class DiffJoint:
         or (velShape and velShape[-1] != self._joint.action_dim):
             raise ValueError(f"Joint: {self._joint.name} expects {self._joint.action_dim}"+\
                 f"-dim velocity, but got {vel.shape if vel.shape else 1}-d velocity")
-
-        # if self._joint.mimic is not None:
-        #     mimic_joint = self._joint._joint_map[self._joint.mimic.joint]
-        #     if mimic_joint in self._joint._actuated_joints:
-        #         jointAngle = mimic_joint.angle
-        #         jointAngle = self._joint.mimic.multiplier * jointAngle + self._joint.mimic.offset
-        # elif self._joint in self._joint._actuated_joints and self._joint.angle != 0:
-        #     jointAngle = self._joint.angle
-        # else:
-        #     jointAngle = None
         
-        self.angle = self.angle + vel * TIME_INTERVAL
+        self.angle = self.angle + vel * VELOCITY_SCALE
+        vel.retain_grad()
         self.velocities.append(vel)
 
     def get_child_pose_diff(self) -> torch.Tensor:
@@ -228,33 +219,29 @@ class DiffLink:
             raise ValueError(f"initial pose of a link MUST be a 4-by-4 matrix or a 7-dim vector, got {pose.shape}")
         self.trajectory: List[torch.Tensor] = [pose]
         """A list of link's 7-D, i.e., xyz+quat, position along the time"""
-        self.velocities: List[torch.Tensor] = [
-            _tensor_creator(torch.zeros_like, self.trajectory[0])
-        ]
+        # self.velocities: List[torch.Tensor] = [
+        #     _tensor_creator(torch.zeros_like, self.trajectory[0])
+        # ]
 
     
     def __getattr__(self, name):
         return getattr(self._link, name)
 
-    def move_link(self, pose: torch.Tensor) -> torch.Tensor:
+    def move_link(self, pose: torch.Tensor):
         """ Add a new pose to the link's trajectory
 
         Params
         ------
         pose: a tensor of shape (4,4) --- transformation matrix
             or a tensor of shape (7,) --- XYZ + Quat
-        
-        Return
-        ------
-        The velocity necessary to move the link toward the target
         """
         if pose.shape == (4, 4):
             pose = _matrix_2_xyz_quat(pose)
         if pose.shape[-1] != 7:
             raise ValueError(f'pose must either be of shape 4,4 or 7, but got {pose.shape}')
         self.trajectory.append(pose)
-        self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / TIME_INTERVAL)
-        return self.velocities[-1]
+        # self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / VELOCITY_SCALE)
+        # return self.velocities[-1]
 
 
 class DiffRobot(Robot):
@@ -271,7 +258,7 @@ class DiffRobot(Robot):
         self,
         jointActions: Union[None, List[torch.Tensor]],
         link_names: List[str] = None
-    ) -> List[torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         """ Differetiable version of robot.link_fk
 
         Params
@@ -285,8 +272,8 @@ class DiffRobot(Robot):
             returned
         Return
         ------
-        A sequence of the 7-D velocities (XYZ + Quat) of the
-        links specified in link_names. 
+        A mapping from link names to their poses, each
+        being a 7-dim vector
         """
         if link_names == None:
             link_names = self._link_map.keys()
@@ -309,47 +296,25 @@ class DiffRobot(Robot):
             fk[currentLink] = pose4by4
         for link, pose4by4 in fk.items():
             link.move_link(pose4by4)
-        return [
-            self._link_map[linkName].velocities[-1]
+        return {
+            linkName: self._link_map[linkName].trajectory[-1]
             for linkName in link_names
-        ]
+        }
     
-    def backward(self, timeStep: int, linkGrad: Dict[str, torch.Tensor]) -> Generator[torch.Tensor, None, None]:
-        """ Backward the gradients from links' velocity at one moment to
-        the actuated joints' velocities
+    
+    def fk_gradient(self, timeStep: int) -> Generator[torch.Tensor, None, None]:
+        """ Get the joint velocities's gradient
+
+        NOTE: this must be called AFTER the backpropagation of forward
+        kinematics is done, i.e. `Controller.forward_kinematics.grad()`
 
         Params
         ------
         timeStep: determine at which moment the gradient is propagated to
-        linkGrad: from link's name to its velocity gradient
 
         Returns
         -------
         A sequence of gradients of the joints' velocities
-        """
+        """      
         for diffJoint in self._actuated_joints:
-            if len(diffJoint.velocities) < timeStep:
-                raise ValueError(f"{diffJoint.name} does not have {timeStep} time steps")
-            diffJoint.velocities[timeStep].retain_grad()
-
-        for linkName, gradient in linkGrad.items():
-            diffLink = self._link_map[linkName]
-            if len(diffLink.velocities) < timeStep:
-                raise ValueError(f"{diffLink.name} does not have {timeStep} time steps")
-            diffLink.velocities[timeStep].backward(gradient, retain_graph=True)
-        
-        for diffJoint in self._actuated_joints:
-            yield diffJoint.velocities[timeStep].grad
-
-    @property
-    def cursor(self) -> int:
-        """ Return the current time cursor
-
-        * -1 if the links' poses has not been intialized
-        *  0 if the no action has been taken (so links are 
-            at their default position)
-        """
-        return max(
-            len(diffLink.trajectory if diffLink.trajectory else 0)
-            for diffLink in self._links
-        ) - 1
+            yield diffJoint.velocities[timeStep].grad.reshape((-1))

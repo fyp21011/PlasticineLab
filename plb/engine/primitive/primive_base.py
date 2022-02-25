@@ -1,8 +1,10 @@
-import taichi as ti
 import numpy as np
-from .utils import length, qrot, qmul, w2quat
-from ...config.utils import make_cls_config
+import taichi as ti
+import torch
 from yacs.config import CfgNode as CN
+
+from ...config.utils import make_cls_config
+from .utils import length, qrot, qmul, w2quat
 from .utils import inv_trans, qrot
 
 
@@ -134,6 +136,41 @@ class Primitive:
         # rotate in world coordinates about itself.
         self.rotation[f+1] = qmul(w2quat(self.w[f],
                                   self.dtype), self.rotation[f])
+
+    @ti.complex_kernel
+    def apply_robot_forward_kinemtaics(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
+        """ The robot's foward kinematics computes the target postion and
+        rotation of each primitive geometry for each substep. The method
+        applies this computation results to the primitive geometries.
+
+        Parameters
+        ----------
+        frameIdx: the time index
+        xyz_quat: the position and global rotation the primitive geometry
+            should be moved to
+        """
+        if xyz_quat.shape[-1] != 7:
+            raise ValueError(f"XYZ expecting Tensor of shape (..., 7), got {xyz_quat.shape}")
+        xyz_quat = xyz_quat.detach().cpu().numpy()
+        targetXYZ = xyz_quat[:3]
+        targetQuat = xyz_quat[3:]
+
+        self.position[frameIdx + 1] = np.clip(
+            targetXYZ,
+            self.xyz_limit[0].value,
+            self.xyz_limit[1].value
+        )
+        self.rotation[frameIdx + 1] = targetQuat
+
+    @ti.complex_kernel_grad(apply_robot_forward_kinemtaics)
+    def forward_kinematics_gradient_backward_2_robot(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
+        grads = torch.zeros_like(xyz_quat, device = xyz_quat.device)
+        for i in range(3):
+            grads[i] = self.position.grad[frameIdx + 1][i]
+        for i in range(4):
+            grads[3 + i] = self.rotation.grad[frameIdx + 1][i]
+        xyz_quat.backward(grads, retain_graph=True)
+
 
     # state set and copy ...
     @ti.func
