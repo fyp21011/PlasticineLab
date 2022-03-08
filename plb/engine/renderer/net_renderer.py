@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+import socket
 
 import numpy as np
 
@@ -10,9 +11,13 @@ class NetRenderer:
     def __init__(self,
         cfg: Dict[str, Any],
         free_primitives: List[Primitive],
-        robots: List[Robot]
+        robots: List[Robot],
+        ip:str = 'localhost',
+        port: str = '4490'
     ) -> None:
-        pass
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        """IPv4 TCP socket"""
+        self.client.connect((ip, port))
 
     def set_particles(self, particles) -> None:
         pass
