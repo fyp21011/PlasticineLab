@@ -1,12 +1,22 @@
-import taichi as ti
+from typing import Iterable
+
 import numpy as np
+import taichi as ti
 import torch
 import torch.nn as nn
+
+from plb.engine.controller import Controller
+from plb.engine.primitive.primive_base import Primitive
 
 
 @ti.data_oriented
 class MPMSimulator:
-    def __init__(self, cfg, primitives=()):
+    def __init__(self,
+        cfg,
+        primitives: Iterable[Primitive]=(),
+        robots_controller: Controller=None, 
+        free_primitives_controller: Controller=None
+    ):
         dim = self.dim = cfg.dim
         assert cfg.dtype == 'float64'
         dtype = self.dtype = ti.f64 if cfg.dtype == 'float64' else ti.f32
@@ -67,7 +77,16 @@ class MPMSimulator:
 
         # gravity ...
         self.gravity = ti.Vector.field(dim, dtype=dtype, shape=())
+
+        # controllers
         self.primitives = primitives
+        self.rc = robots_controller
+        """Robots Controller"""
+        self.fpc = free_primitives_controller if free_primitives_controller != None \
+            else primitives
+        """Free Primitives Controller, 
+        i.e. controller for those primitives belongs to no robots
+        """
 
         # torch neural net
         self.nn = None
@@ -299,8 +318,8 @@ class MPMSimulator:
         self.svd()
         self.p2g(s)
 
-        for i in range(self.n_primitive):
-            self.primitives[i].forward_kinematics(s)
+        self.fpc.forward_kinematics(s)
+        self.rc.forward_kinematics(s)
 
         self.grid_op(s)
         self.g2p(s)
@@ -319,8 +338,8 @@ class MPMSimulator:
         self.g2p.grad(s)
         self.grid_op.grad(s)
 
-        for i in range(self.n_primitive-1, -1, -1):
-            self.primitives[i].forward_kinematics.grad(s)
+        self.fpc.forward_kinematics.grad(s)
+        self.rc.forward_kinematics.grad(s)
 
         self.p2g.grad(s)
         self.svd_grad()
@@ -441,8 +460,10 @@ class MPMSimulator:
         self.cur = start + self.substeps
 
         if action is not None:
-            self.primitives.set_action(
-                start//self.substeps, self.substeps, action)
+            self.fpc.set_action(start//self.substeps, self.substeps, 
+                action[:self.primitives.action_dim])
+            self.rc.set_action(start//self.substeps, self.substeps, 
+                action[self.primitives.action_dim:])
 
         for s in range(start, self.cur):
             self.substep(s)
@@ -481,12 +502,17 @@ class MPMSimulator:
     @ti.complex_kernel_grad(act)
     def act_grad(self,obs,cur,a):
         action = self.torch_actions.pop()
+        # SHAPE: (SUM(FREE PRIMITIVE'S DOF) + SUM(JOINT'S DOF), )
+
         # This get the gradient for a action
-        actuation_grad = self.primitives.get_step_grad(cur)
-        # actuation_grad = self.primitives.get_step_grad(cur).reshape(1,1,-1) # lstm
+        actuation_grad = self.fpc.get_step_grad(cur) # The free primitives' gradient
+        if self.rc.not_empty:
+            joint_velocity_grad = self.rc.get_step_grad(cur) # The joint-level primitives
+            clipped_actuation_grad = torch.cat((torch.from_numpy(actuation_grad), joint_velocity_grad))
+        else:
+            clipped_actuation_grad = torch.from_numpy(actuation_grad)
 
         # grad preprocessing
-        clipped_actuation_grad = torch.from_numpy(actuation_grad)
         # nn.utils.clip_grad_norm_(clipped_actuation_grad, max_norm=1.0, norm_type=2)
         nn.utils.clip_grad_value_(clipped_actuation_grad, clip_value=1.0)
 

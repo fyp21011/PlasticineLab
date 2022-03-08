@@ -1,4 +1,3 @@
-from os import times
 import pickle
 from typing import Dict, List
 
@@ -48,7 +47,7 @@ def test_forward_kinematics():
         # positional actions
         posActions: List[Dict[str, float]] = pickle.load(reader)
 
-    with open('tests/data/ur5/real_action.pkl', 'rb') as reader:
+    with open('tests/data/ur5/action_swap.pkl', 'rb') as reader:
         # velocity-based actions
         velActions: List[Dict[str, float]] = pickle.load(reader)
 

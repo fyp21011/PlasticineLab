@@ -3,6 +3,7 @@ from gym.spaces import Box
 import os
 import yaml
 import numpy as np
+
 from ..config import load
 from yacs.config import CfgNode
 from .utils import merge_lists
@@ -26,7 +27,7 @@ class PlasticineEnv(gym.Env):
         obs = self.reset()
         self.observation_space = Box(-np.inf, np.inf, obs.shape)
         self.action_space = Box(-1, 1,
-                                (self.taichi_env.primitives.action_dim,))
+                                (self.taichi_env.action_dim,))
 
     def reset(self):
         self.taichi_env.set_state(**self._init_state)
@@ -58,7 +59,7 @@ class PlasticineEnv(gym.Env):
 
     def render(self, mode='human'):
         return self.taichi_env.render(mode)
-
+    
     @classmethod
     def load_varaints(self, cfg_path, version):
         assert version >= 1

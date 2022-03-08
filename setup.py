@@ -17,12 +17,12 @@ install_requires = [
     'open3d',
     'lxml',
     'networkx',
-    'future-fstrings',
-    'bpy',
-    'bpy_post_install'
+    'pytorch3d',
+    'pytest'
 ]
 
-setup(name='plb',
-      version='0.0.1',
-      install_requires=install_requires,
-      )
+setup(
+    name='plb',
+    version='0.0.1',
+    install_requires=install_requires,
+)
