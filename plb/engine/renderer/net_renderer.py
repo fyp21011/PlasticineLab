@@ -18,6 +18,7 @@ class NetRenderer:
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         """IPv4 TCP socket"""
         self.client.connect((ip, port))
+        self.client.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
 
     def set_particles(self, particles) -> None:
         pass
