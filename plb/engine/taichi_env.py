@@ -3,8 +3,6 @@ import cv2
 import taichi as ti
 import torch
 
-from plb.engine.robots import RobotsController
-from plb.engine.primitive import Primitives
 
 # TODO: run on GPU, fast_math will cause error on float64's sqrt; removing it cuases compile error..
 ti.init(arch=ti.gpu, debug=False, fast_math=True)
@@ -19,6 +17,8 @@ class TaichiEnv:
         # primitives are environment specific parameters ..
         # move it inside can improve speed; don't know why..
         from .mpm_simulator import MPMSimulator
+        from .controller.robots import RobotsController
+        from .controller.primitive_controller import Primitives
         from .renderer import Renderer
         from .shapes import Shapes
         from .losses import Loss

@@ -9,7 +9,8 @@ from yacs.config import CfgNode as CN
 from plb.config.utils import make_cls_config
 from plb.engine.controller import Controller
 from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
-from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
+from plb.engine.primitive.primitives import Box, Sphere, Cylinder, Primitive
+from .primitive_controller import Primitives
 
 ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))

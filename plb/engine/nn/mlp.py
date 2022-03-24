@@ -6,7 +6,8 @@ import numpy as np
 import taichi as ti
 from ...config.utils import CfgNode as CN
 from ..mpm_simulator import MPMSimulator
-from ..primitive.primitives import Primitives, Chopsticks
+from ..primitive.primitives import Chopsticks
+from ..controller.primitive_controller import Primitives
 
 @ti.data_oriented
 class MLP:

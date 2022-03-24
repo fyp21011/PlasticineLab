@@ -1,8 +1,8 @@
 import taichi
 import torch
 
-from plb.engine.primitive import Primitives
-from plb.engine.robots import RobotsController
+from plb.engine.controller.primitive_controller import Primitives
+from plb.engine.controller.robots import RobotsController
 from plb.urdfpy import DiffRobot
 
 taichi.init()

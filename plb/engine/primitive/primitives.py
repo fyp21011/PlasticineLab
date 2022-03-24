@@ -4,7 +4,6 @@ import numpy as np
 import taichi as ti
 from yacs.config import CfgNode as CN
 
-from ..controller import Controller
 from .primive_base import Primitive
 from .utils import qrot, qmul, w2quat
 
@@ -259,89 +258,3 @@ class Box(Primitive):
         cfg.size = (0.1, 0.1, 0.1)
         return cfg
 
-
-class Primitives(Controller):
-    def __init__(self, cfgs, max_timesteps=1024):
-        super().__init__()
-        outs = []
-        self.primitives = []
-        for i in cfgs:
-            if isinstance(i, CN):
-                cfg = i
-            else:
-                cfg = CN(new_allowed=True)
-                cfg = cfg._load_cfg_from_yaml_str(yaml.safe_dump(i))
-            outs.append(cfg)
-
-        self.action_dims = [0]
-        for i in outs:
-            primitive = eval(i.shape)(cfg=i, max_timesteps=max_timesteps)
-            self.primitives.append(primitive)
-            self.action_dims.append(self.action_dims[-1] + primitive.action_dim)
-        self.n = len(self.primitives)
-        """number of free primitives
-        
-        Those primitives created & controlled by robots
-        will not be counted here
-        """
-
-    def _forward_kinematics(self, s):
-        for i in range(self.n):
-            self.primitives[i].forward_kinematics(s)
-
-    def _forward_kinematics_grad(self, s):
-        for i in range(self.n-1, -1, -1):
-            self.primitives[i].forward_kinematics.grad(s)
-
-    @property
-    def not_empty(self) -> bool:
-        return len(self.primitives) > 0
-
-    @property
-    def action_dim(self):
-        return self.action_dims[-1]
-
-    @property
-    def state_dim(self):
-        return sum([i.state_dim for i in self.primitives])
-
-    def set_action(self, s, n_substeps, action):
-        action = np.asarray(action).reshape(-1).clip(-1, 1)
-        assert len(action) == self.action_dims[-1]
-        for i in range(self.n):
-            self.primitives[i].set_action(s, n_substeps, action[self.action_dims[i]:self.action_dims[i+1]])
-
-    def get_grad(self, n):
-        grads = []
-        for i in range(self.n):
-            grad = self.primitives[i].get_action_grad(0, n)
-            if grad is not None:
-                grads.append(grad)
-        return np.concatenate(grads, axis=1)
-
-    def get_step_grad(self,n):
-        grads = []
-        for i in range(self.n): # only the FREE PRIMITIVES
-            grad = self.primitives[i].get_step_action_grad(n)
-            if grad is not None:
-                grads.append(grad)
-        return np.concatenate(grads,axis=0)
-
-    def set_softness(self, softness=666.):
-        for i in self.primitives:
-            i.softness[None] = softness
-
-    def get_softness(self):
-        return self.primitives[0].softness[None]
-
-    def __getitem__(self, item):
-        if isinstance(item, tuple):
-            item = item[0]
-        return self.primitives[item]
-
-    def __len__(self):
-        return len(self.primitives)
-
-    def initialize(self):
-        for i in self.primitives:
-            i.initialize()
