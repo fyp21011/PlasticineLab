@@ -3,12 +3,15 @@ import numpy as np
 import fcl
 from plb.engine.primitive.primitives import Box, Sphere, Cylinder, Primitive
 
-
+#TODO: reduce fcl objects regeneration?
 class PrimitiveCollisionManager:
     def __init__(self, frame, primitives) -> None:
         if type(primitives) == dict:
             self.obj_names = list(primitives.keys())
+
+            # list of (CollisionObject, CollisionGeometry) for the geometry-to-name mapping
             self.fcl_objs = [self.build_fcl_obj(primitive, frame) for primitive in primitives.values()]
+            
             self.geom_id_to_name_map = {id(obj[1]): name for obj, name in zip(self.fcl_objs, self.obj_names)}
         else:
             self.fcl_objs = [self.build_fcl_obj(primitive, frame) for primitive in primitives]
@@ -45,6 +48,9 @@ class PrimitiveCollisionManager:
         cdata = fcl.CollisionData()
         self.manager.collide(cdata, collision_callback)
         
+        # ref: https://github.com/BerkeleyAutomation/python-fcl#extracting-which-objects-are-in-collision
+        # FCL report contacts with `fcl.CollisionGeometry` instead of `fcl.CollisionObject.`
+        # Therefore we map the memory id of the CollisionGeometry to its corresponding CollisionObject and link name
         contacts = []
         if self.geom_id_to_name_map:
             for contact in cdata.result.contacts:
