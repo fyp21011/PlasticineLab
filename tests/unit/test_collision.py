@@ -43,11 +43,14 @@ def test_sphere_collision_false():
 def test_robot_self_collsion():
     rc = RobotsController()
     robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
-    collision_primitives = list(rc.append_robot(robot))
+    list(rc.append_robot(robot))
+    collision_primitives = rc.link_2_primitives[0]
+
     collision_env = PrimitiveCollisionManager(0, collision_primitives)
-    
     # TODO: how is robot primitives initiailzed?
-    assert collision_env.check_robot_collision()
+    collided, contacts = collision_env.check_robot_collision()
+    
+    print(collided, contacts)
+    assert collided
 
-
-
+# test_robot_self_collsion()
