@@ -7,7 +7,7 @@ import torch.nn as nn
 
 from plb.engine.controller import Controller
 from plb.engine.primitive.primive_base import Primitive
-
+from plb.engine.collision_manager import PrimitiveCollisionManager
 
 @ti.data_oriented
 class MPMSimulator:
@@ -455,7 +455,7 @@ class MPMSimulator:
             self.no_grad_get_v_kernel(f, v)
         return v
 
-    def step(self, is_copy, action=None):
+    def step(self, is_copy, action=None, collision_callback=None):
         start = 0 if is_copy else self.cur
         self.cur = start + self.substeps
 
@@ -467,6 +467,9 @@ class MPMSimulator:
 
         for s in range(start, self.cur):
             self.substep(s)
+            self.collision_detector = PrimitiveCollisionManager(start//self.substeps, self.primitives)
+            self.check_robot_collision(collision_callback)
+
         if is_copy:
             # copy to the first frame for simulation
             self.copyframe(self.cur, 0)

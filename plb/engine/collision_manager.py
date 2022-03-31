@@ -1,6 +1,6 @@
 import numpy as np
 import fcl
-from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
+from plb.engine.primitive.primitives import Box, Sphere, Cylinder, Primitive
 
 
 class PrimitiveCollisionManager:
@@ -31,7 +31,10 @@ class PrimitiveCollisionManager:
         obj = fcl.CollisionObject(shape, tf)
         return obj
 
-    def check_robot_collision(self) -> bool:
+    def check_robot_collision(self, collision_callback=None) -> bool:
+        if not collision_callback:
+            collision_callback = fcl.defaultCollisionCallback
+        
         cdata = fcl.CollisionData()
-        self.manager.collide(cdata, fcl.defaultCollisionCallback)
+        self.manager.collide(cdata, collision_callback)
         return cdata.result.is_collision
