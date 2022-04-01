@@ -7,10 +7,11 @@ import torch.nn as nn
 
 from plb.engine.controller import Controller
 from plb.engine.primitive.primive_base import Primitive
+from plb.utils import VisRecordable
 
 
 @ti.data_oriented
-class MPMSimulator:
+class MPMSimulator(VisRecordable):
     def __init__(self,
         cfg,
         primitives: Iterable[Primitive]=(),

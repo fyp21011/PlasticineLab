@@ -4,6 +4,8 @@ import numpy as np
 import taichi as ti
 from yacs.config import CfgNode as CN
 
+from plb.utils import VisRecordable
+
 from ..controller import Controller
 from .primive_base import Primitive
 from .utils import qrot, qmul, w2quat
@@ -260,7 +262,7 @@ class Box(Primitive):
         return cfg
 
 
-class Primitives(Controller):
+class Primitives(Controller, VisRecordable):
     def __init__(self, cfgs, max_timesteps=1024):
         super().__init__()
         outs = []

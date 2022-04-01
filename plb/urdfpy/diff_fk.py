@@ -5,6 +5,7 @@ from pytorch3d import transforms
 import torch
 
 from plb.urdfpy import Robot, Joint, Link
+from plb.utils import VisRecordable
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE = torch.device(DEVICE)
@@ -190,7 +191,7 @@ class DiffJoint:
         else:
             raise ValueError('Invalid configuration')
 
-class DiffLink:
+class DiffLink(VisRecordable):
     """ The differentiable wrapper of the Link
 
     Params
