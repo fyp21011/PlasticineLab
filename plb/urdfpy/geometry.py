@@ -318,6 +318,7 @@ class Mesh(URDFType):
                 contraction=o3d.geometry.SimplificationContraction.Average
             )
         kwargs['meshes'] = meshes
+        kwargs['filename'] = fn
 
         return Mesh(**kwargs)
 
