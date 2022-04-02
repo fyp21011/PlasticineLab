@@ -4,8 +4,9 @@ import warnings
 from pytorch3d import transforms
 import torch
 
-from plb.urdfpy import Robot, Joint, Link
+from plb.urdfpy import Robot, Joint, Link, Box, Cylinder, Mesh, Sphere
 from plb.utils import VisRecordable
+from protocol import MeshesMessage, AddRigidBodyPrimitiveMessage, UpdateRigidBodyPoseMessage
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE = torch.device(DEVICE)
@@ -199,9 +200,83 @@ class DiffLink(VisRecordable):
     link: the Link to be wrapped
     pose: the initial pose of the link, which is a 4-by-4 matrix
     """
+    _name_registry = set()
+
     def __init__(self, link: Link, pose = None) -> None:
         self._link = link
+        self._name_2_vis = {}
+        self._unique_name, conflict_cnt = self._link.name, 0
+        if self._unique_name in self._name_registry:
+            conflict_cnt += 1
+            self._unique_name = self._link.name + "_" + str(conflict_cnt)
+        self._name_registry.add(self._unique_name)
+
+        for idx, visual in enumerate(self._link.visuals):
+            geometry = visual.geometry
+            if geometry.box is not None:
+                name = self._name_gen("box", idx)
+                self._name_2_vis[name] = geometry.box
+            elif geometry.cylinder is not None:
+                name = self._name_gen("cylinder", idx)
+                self._name_2_vis[name] = geometry.cylinder
+            elif geometry.sphere is not None:
+                name = self._name_gen("sphere", idx)
+                self._name_2_vis[name] = geometry.sphere
+            elif geometry.mesh is not None:
+                name = self._name_gen(geometry.mesh.filename, idx)
+                self._name_2_vis[name] = geometry.mesh
+                
+                
         if pose is not None: self.init_pose = pose
+        self.register_scene_init_callback(self._visualize_link_at_init_pose)
+
+    def _name_gen(self, geometry_type: str, geometry_idx: int) -> str:
+        name = f"{self._unique_name}_{geometry_type}"
+        if name in self._name_2_vis:
+            name = f"{self._unique_name}_{geometry_idx}_{geometry_type}"
+        return name
+
+    def _visualize_link_at_init_pose(self):
+        init_pose = self.init_pose
+        if init_pose is None:
+            return
+        init_pose = init_pose.tolist()
+        for name, vis in self._name_2_vis.items():
+            if isinstance(vis, Mesh):
+                with open(vis.filename, 'rb') as reader:
+                    filecontent = reader.read()
+                MeshesMessage(
+                    name,
+                    filecontent,
+                    init_pose = init_pose
+                ).send()
+            else:
+                if isinstance(vis, Box):
+                    init_msg = AddRigidBodyPrimitiveMessage(
+                        name, 
+                        "bpy.ops.mesh.primitive_cube_add",
+                        size = 1.0,
+                        scale = (vis.size[0], vis.size[1], vis.size[2])
+                    )
+                elif isinstance(vis, Cylinder):
+                    init_msg = AddRigidBodyPrimitiveMessage(
+                        name, 
+                        "bpy.ops.mesh.primitive_cylinder_add",
+                        radius = vis.radius,
+                        depth = vis.length
+                    )
+                elif isinstance(vis, Sphere):
+                    init_msg = AddRigidBodyPrimitiveMessage(
+                        name, 
+                        "bpy.ops.mesh.primitive_uv_sphere_add",
+                        radius = vis.radius
+                    )
+                else:
+                    raise NotImplementedError()
+                init_msg.send()
+                # then set the position
+                UpdateRigidBodyPoseMessage(name, init_pose, frame_idx = 0).send()
+
 
     @property
     def init_pose(self) -> Union[torch.Tensor, None]:
@@ -243,7 +318,9 @@ class DiffLink(VisRecordable):
         self.trajectory.append(pose)
         # self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / VELOCITY_SCALE)
         # return self.velocities[-1]
-
+        if self.is_recording():
+            for name in self._name_2_vis.keys():
+                UpdateRigidBodyPoseMessage(name, pose, self.current_frame_idx())
 
 class DiffRobot(Robot):
     """ The robot with differentiable forward kinematics

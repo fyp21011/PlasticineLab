@@ -9,6 +9,8 @@ from plb.engine.controller import Controller
 from plb.engine.primitive.primive_base import Primitive
 from plb.utils import VisRecordable
 
+from protocol import DeformableMeshesMessage
+
 
 @ti.data_oriented
 class MPMSimulator(VisRecordable):
@@ -468,10 +470,19 @@ class MPMSimulator(VisRecordable):
 
         for s in range(start, self.cur):
             self.substep(s)
+        
+        if self.is_recording():
+            DeformableMeshesMessage.Factory(
+                "mpm",
+                self.current_frame_idx(),
+                pcd = self.get_x(self.cur + 1, needs_grad = False)
+            ).message.send()
+        
         if is_copy:
             # copy to the first frame for simulation
             self.copyframe(self.cur, 0)
             self.cur = 0
+
 
     # ------------------------------------------------------------------
     # for loss computation
