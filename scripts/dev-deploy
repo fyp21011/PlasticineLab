@@ -52,13 +52,13 @@ echo    "2) X11 forwarding"
 read -p "1 or 2? "
 
 if [ $REPLY == '2' ]; then
-    echo -e "\033[34mExecuting\033[0m nvidia-docker run \n\t-dit \n\t-v /etc/localtime:/etc/localtime:ro \n\t$maps \n\t-v /tmp/.X11-unix:/tmp/.X11-unix:rw \n\t-v $HOME/.Xauthority:/root/.Xauthority:rw \n\t--network=host \n\t--privileged \n\t-e DISPLAY=:10.0 \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \n\t$DEV_IMAGE /bin/bash"
-	container=`nvidia-docker run -dit -v /etc/localtime:/etc/localtime:ro $maps -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v $HOME/.Xauthority:/root/.Xauthority:rw --network=host --privileged -e DISPLAY=:10.0 -e GDK_SCALE -e GDK_DPI_SCALE $DEV_IMAGE /bin/bash`
+    echo -e "\033[34mExecuting\033[0m nvidia-docker run -p 4490:4490 \n\t-dit \n\t-v /etc/localtime:/etc/localtime:ro \n\t$maps \n\t-v /tmp/.X11-unix:/tmp/.X11-unix:rw \n\t-v $HOME/.Xauthority:/root/.Xauthority:rw \n\t--network=host \n\t--privileged \n\t-e DISPLAY=:10.0 \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \n\t$DEV_IMAGE /bin/bash"
+	container=`nvidia-docker run -p 4490:4490 -dit -v /etc/localtime:/etc/localtime:ro $maps -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v $HOME/.Xauthority:/root/.Xauthority:rw --network=host --privileged -e DISPLAY=:10.0 -e GDK_SCALE -e GDK_DPI_SCALE $DEV_IMAGE /bin/bash`
 	echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background."
 	echo -e "You can attach to it using this hash\033[0m"
 else
-	echo -e "\033[34mExecuting\033[0m nvidia-docker run \n\t-v /etc/localtime:/etc/localtime:ro \n\t-v /tmp/.X11-unix/:/tmp/.X11-unix \n\t-e DISPLAY=unix$DISPLAY \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \\\n\t$maps -dit $DEV_IMAGE /bin/bash"
-	container=`nvidia-docker run -v /etc/localtime:/etc/localtime:ro -v /tmp/.X11-unix/:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY -e GDK_SCALE -e GDK_DPI_SCALE $maps -dit $DEV_IMAGE /bin/bash`
+	echo -e "\033[34mExecuting\033[0m nvidia-docker run -p 4490:4490 \n\t-v /etc/localtime:/etc/localtime:ro \n\t-v /tmp/.X11-unix/:/tmp/.X11-unix \n\t-e DISPLAY=unix$DISPLAY \n\t-e GDK_SCALE \n\t-e GDK_DPI_SCALE \\\n\t$maps -dit $DEV_IMAGE /bin/bash"
+	container=`nvidia-docker run -p 4490:4490 -v /etc/localtime:/etc/localtime:ro -v /tmp/.X11-unix/:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY -e GDK_SCALE -e GDK_DPI_SCALE $maps -dit $DEV_IMAGE /bin/bash`
 	echo -e "\033[34mThe container has been started at \033[0m${container:0:12}\033[34m in the background."
 	echo -e "You can attach to it using this hash\033[0m"
 fi
