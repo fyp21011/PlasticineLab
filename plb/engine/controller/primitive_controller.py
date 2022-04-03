@@ -1,4 +1,5 @@
 from .controller import Controller
+from plb.engine.primitive.primitives import Box, Sphere, Cylinder
 
 import numpy as np
 import yaml

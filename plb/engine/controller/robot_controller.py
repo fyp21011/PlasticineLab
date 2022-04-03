@@ -7,7 +7,7 @@ import torch
 from yacs.config import CfgNode as CN
 
 from plb.config.utils import make_cls_config
-from plb.engine.controller import Controller
+from .controller import Controller
 from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
 from plb.engine.primitive.primitives import Box, Sphere, Cylinder, Primitive
 from .primitive_controller import Primitives

@@ -17,7 +17,7 @@ class TaichiEnv:
         # primitives are environment specific parameters ..
         # move it inside can improve speed; don't know why..
         from .mpm_simulator import MPMSimulator
-        from .controller.robots import RobotsController
+        from .controller.robot_controller import RobotsController
         from .controller.primitive_controller import Primitives
         from .renderer import Renderer
         from .shapes import Shapes

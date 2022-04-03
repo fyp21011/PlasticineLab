@@ -4,7 +4,7 @@ import numpy as np
 import taichi
 import torch
 
-from plb.engine.controller.robots import RobotsController
+from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot, Link, FK_CFG_Type, Mesh
 
 taichi.init()
