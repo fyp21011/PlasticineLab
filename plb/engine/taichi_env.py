@@ -25,9 +25,9 @@ class TaichiEnv:
         from .nn.mlp import MLP
 
         self.cfg = cfg.ENV
-        self.primitives = PrimitivesController(cfg.PRIMITIVES)
-        controller = RobotsController.parse_config(cfg.ROBOTS, self.primitives)
-        self.action_dims = self.primitives.action_dims.copy()
+        self.primitive_controller = PrimitivesController(cfg.PRIMITIVES)
+        controller = RobotsController.parse_config(cfg.ROBOTS, self.primitive_controller) #TODO: just return the new primitives
+        self.action_dims = self.primitive_controller.action_dims.copy()
         controller.export_action_dims(to = self.action_dims)
         self.shapes = Shapes(cfg.SHAPES)
         self.init_particles, self.particle_colors = self.shapes.get()
@@ -35,11 +35,11 @@ class TaichiEnv:
         cfg.SIMULATOR.defrost()
         self.n_particles = cfg.SIMULATOR.n_particles = len(self.init_particles)
 
-        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitives, controller)
-        self.renderer = Renderer(cfg.RENDERER, self.primitives)
+        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitive_controller, controller)
+        self.renderer = Renderer(cfg.RENDERER, self.primitive_controller)
 
         if nn:
-            self.nn = MLP(self.simulator, self.primitives, (256, 256))
+            self.nn = MLP(self.simulator, self.primitive_controller, (256, 256))
 
         if loss:
             self.loss = Loss(cfg.ENV.loss, self.simulator)
@@ -56,7 +56,7 @@ class TaichiEnv:
 
     def initialize(self):
         # initialize all taichi variable according to configurations..
-        self.primitives.initialize()
+        self.primitive_controller.initialize()
         self.simulator.initialize()
         self.renderer.initialize()
         if self.loss:
@@ -96,7 +96,7 @@ class TaichiEnv:
         x = self.simulator.get_x(t, needs_grad=False)
         v = self.simulator.get_v(t, needs_grad=False)
         outs = []
-        for i in self.primitives:
+        for i in self.primitive_controller: #TODO: replace controller with all primitives 
             outs.append(i.get_state(t, needs_grad=False))
         s = np.concatenate(outs)
         step_size = len(x) // n_observed_particles
@@ -119,14 +119,14 @@ class TaichiEnv:
         assert self.simulator.cur == 0
         return {
             'state': self.simulator.get_state(0),
-            'softness': self.primitives.get_softness(),
+            'softness': self.primitive_controller.get_softness(),
             'is_copy': self._is_copy
         }
 
     def set_state(self, state, softness, is_copy):
         self.simulator.cur = 0
         self.simulator.set_state(0, state)
-        self.primitives.set_softness(softness)
+        self.primitive_controller.set_softness(softness)
         self._is_copy = is_copy
         if self.loss:
             self.loss.reset()
