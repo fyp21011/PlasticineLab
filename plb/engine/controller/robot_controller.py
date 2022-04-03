@@ -55,7 +55,7 @@ class RobotsController(Controller):
     def __init__(self) -> None:
         super().__init__()
         self.robots: List[DiffRobot] = []
-        self.robot_action_dims: List[int] = []
+        self.robot_action_dims: List[int] = [] # not [0]
         self.link_2_primitives: List[Dict[str, Primitive]] = []
         """ `link_2_primitives[RobotIdx][LinkName]` returns the primivite
         corresponds to the collision geometry of the link named as `LinkName`
@@ -76,7 +76,7 @@ class RobotsController(Controller):
         return len(self.robots) > 0
 
     @classmethod
-    def parse_config(cls, cfgs: List[Union[CN, str]], primitive_controller: PrimitivesController) -> "RobotsController":
+    def parse_config(cls, cfgs: List[Union[CN, str]]) -> "RobotsController":
         """ Parse the YAML configuration node for `Robots`
         
         Load the robots from the URDF files specified by the `Robots` config node
@@ -100,8 +100,7 @@ class RobotsController(Controller):
         rc = RobotsController()
         for eachOutCfg in outs:
             diffRobot = DiffRobot.load(eachOutCfg.path)
-            for shape in rc.append_robot(diffRobot, eachOutCfg.offset):
-                primitive_controller.primitives.append(shape)
+            list(rc.append_robot(diffRobot, eachOutCfg.offset))
         return rc
 
     @classmethod
@@ -180,29 +179,6 @@ class RobotsController(Controller):
                 if linkPrimitive is not None:
                     self.link_2_primitives[-1][linkName] = linkPrimitive
                     yield linkPrimitive
-    
-    def export_action_dims(self, to: List[int] = [0]): 
-        """ Append the robots' action spaces to the actionDims list
-
-        For example, plb.engine.primitive.Primitives maintains an action_dims list
-        like [0, 3, 6, 8] which indicates the action[0:3] is for primitive[0], 
-        action[3:6] for primitive[1], action[6:8] for primitive[2]. 
-        
-        Assuming we now have two robots, one of 10 DoFs the other of 5, then, 
-        the action_dims should be appended to [0, 3, 6, 8, 18, 23]. 
-
-        Params
-        ------
-        to: the `action_dims` in `plb.engine.primitive.Primitives` where
-            the numbers of action dimensions of robots in this controller will
-            be appended.
-        """
-        if not self.robots:
-            return # no robots, so no effect on actionDims
-        assert len(to) > 0, "Cannot append to empty action dims list"
-        for dims in self.robot_action_dims:
-            to.append(to[-1] + dims)
-        return to
 
     @staticmethod
     def _deflatten_robot_actions(robot: Robot, robotActions: torch.Tensor) -> List:

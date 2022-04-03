@@ -1,21 +1,19 @@
-from typing import Iterable
-
 import numpy as np
 import taichi as ti
 import torch
 import torch.nn as nn
 
-from plb.engine.controller import Controller
-from plb.engine.primitive.primitive import Primitive
-
+from plb.engine.primitive.primitives_manager import PrimitivesManager
+from plb.engine.controller.primitive_controller import PrimitivesController
+from plb.engine.controller.robot_controller import RobotsController
 
 @ti.data_oriented
 class MPMSimulator:
     def __init__(self,
         cfg,
-        primitives: Iterable[Primitive]=(),
-        robots_controller: Controller=None, 
-        free_primitives_controller: Controller=None
+        primitives: PrimitivesManager,
+        robots_controller: RobotsController=None, 
+        free_primitives_controller: PrimitivesController=None
     ):
         dim = self.dim = cfg.dim
         assert cfg.dtype == 'float64'
@@ -80,13 +78,8 @@ class MPMSimulator:
 
         # controllers
         self.primitives = primitives
-        self.rc = robots_controller
-        """Robots Controller"""
-        self.fpc = free_primitives_controller if free_primitives_controller != None \
-            else primitives
-        """Free Primitives Controller, 
-        i.e. controller for those primitives belongs to no robots
-        """
+        self.rc = robots_controller # Robots Controller
+        self.fpc = free_primitives_controller # Free Primitives Controller
 
         # torch neural net
         self.nn = None
@@ -461,9 +454,9 @@ class MPMSimulator:
 
         if action is not None:
             self.fpc.set_action(start//self.substeps, self.substeps, 
-                action[:self.primitives.action_dim])
+                action[:self.fpc.action_dim])
             self.rc.set_action(start//self.substeps, self.substeps, 
-                action[self.primitives.action_dim:])
+                action[self.fpc.action_dim:])
 
         for s in range(start, self.cur):
             self.substep(s)

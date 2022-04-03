@@ -35,9 +35,11 @@ def test_robot_env_step():
 
     def simulator_step_checker(**kwargs):
         actions = kwargs['action']
-        return actions.shape == (tcEnv.primitives.action_dim + sum(
+        return actions.shape == (tcEnv.primitive_controller.action_dim + sum(
                     robot_controller.robot_action_dims
                 ), )
 
     tcEnv.simulator = MockedSimulator(simulator_step_checker)
     tcEnv.step(torch.rand((tcEnv.action_dim, ), device=DEVICE, dtype=torch.float64, requires_grad=True))
+
+test_robot_env_step()
