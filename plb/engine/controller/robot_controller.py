@@ -76,17 +76,17 @@ class RobotsController(Controller):
         return len(self.robots) > 0
 
     @classmethod
-    def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: PrimitivesController) -> "RobotsController":
+    def parse_config(cls, cfgs: List[Union[CN, str]], primitive_controller: PrimitivesController) -> "RobotsController":
         """ Parse the YAML configuration node for `Robots`
         
         Load the robots from the URDF files specified by the `Robots` config node
-        and insert the collision shapes into the primitiveController as primitive
+        and insert the collision shapes into the primitive_controller as primitive
         shapes. 
 
         Params
         ------
         cfgs: the YAML list titled `Robots` in the env configuration file
-        primitiveController: the Primitives from TaichiEnv, which is pared
+        primitive_controller: the Primitives from TaichiEnv, which is pared
             from the `Primitives` list in the env configuration file
         """
         outs = []
@@ -101,7 +101,7 @@ class RobotsController(Controller):
         for eachOutCfg in outs:
             diffRobot = DiffRobot.load(eachOutCfg.path)
             for shape in rc.append_robot(diffRobot, eachOutCfg.offset):
-                primitiveController.primitives.append(shape)
+                primitive_controller.primitives.append(shape)
         return rc
 
     @classmethod

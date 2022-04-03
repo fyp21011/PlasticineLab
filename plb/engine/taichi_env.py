@@ -26,16 +26,16 @@ class TaichiEnv:
 
         self.cfg = cfg.ENV
         self.primitive_controller = PrimitivesController(cfg.PRIMITIVES)
-        controller = RobotsController.parse_config(cfg.ROBOTS, self.primitive_controller) #TODO: just return the new primitives
+        robot_controller = RobotsController.parse_config(cfg.ROBOTS, self.primitive_controller) #TODO: just return the new primitives
         self.action_dims = self.primitive_controller.action_dims.copy()
-        controller.export_action_dims(to = self.action_dims)
+        robot_controller.export_action_dims(to = self.action_dims)
         self.shapes = Shapes(cfg.SHAPES)
         self.init_particles, self.particle_colors = self.shapes.get()
 
         cfg.SIMULATOR.defrost()
         self.n_particles = cfg.SIMULATOR.n_particles = len(self.init_particles)
 
-        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitive_controller, controller)
+        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitive_controller, robot_controller)
         self.renderer = Renderer(cfg.RENDERER, self.primitive_controller)
 
         if nn:
