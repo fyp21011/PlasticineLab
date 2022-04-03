@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from plb.engine.controller import Controller
-from plb.engine.primitive.primive_base import Primitive
+from plb.engine.primitive.primitives import Primitive
 
 
 @ti.data_oriented
