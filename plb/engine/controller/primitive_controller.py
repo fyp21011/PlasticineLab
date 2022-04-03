@@ -46,10 +46,6 @@ class PrimitivesController(Controller):
     def action_dim(self):
         return self.action_dims[-1]
 
-    @property
-    def state_dim(self):
-        return sum([i.state_dim for i in self.primitives])
-
     def set_action(self, s, n_substeps, action):
         action = np.asarray(action).reshape(-1).clip(-1, 1)
         assert len(action) == self.action_dims[-1]
@@ -71,22 +67,3 @@ class PrimitivesController(Controller):
             if grad is not None:
                 grads.append(grad)
         return np.concatenate(grads,axis=0)
-
-    def set_softness(self, softness=666.):
-        for i in self.primitives:
-            i.softness[None] = softness
-
-    def get_softness(self):
-        return self.primitives[0].softness[None]
-
-    def __getitem__(self, item): # make Primitives iterable, TODO: refactor it
-        if isinstance(item, tuple):
-            item = item[0]
-        return self.primitives[item]
-
-    def __len__(self):
-        return len(self.primitives)
-
-    def initialize(self):
-        for i in self.primitives:
-            i.initialize()
