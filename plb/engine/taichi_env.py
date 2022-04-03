@@ -3,6 +3,14 @@ import cv2
 import taichi as ti
 import torch
 
+from .mpm_simulator import MPMSimulator
+from .primitive.primitives_manager import PrimitivesManager
+from .controller.robot_controller import RobotsController
+from .controller.primitive_controller import PrimitivesController
+from .renderer import Renderer
+from .shapes import Shapes
+from .losses import Loss
+from .nn.mlp import MLP
 
 # TODO: run on GPU, fast_math will cause error on float64's sqrt; removing it cuases compile error..
 ti.init(arch=ti.gpu, debug=False, fast_math=True)
@@ -13,17 +21,6 @@ class TaichiEnv:
         """
         A taichi env builds scene according the configuration and the set of manipulators
         """
-        # primitives are environment specific parameters ..
-        # move it inside can improve speed; don't know why..
-        from .mpm_simulator import MPMSimulator
-        from .primitive.primitives_manager import PrimitivesManager
-        from .controller.robot_controller import RobotsController
-        from .controller.primitive_controller import PrimitivesController
-        from .renderer import Renderer
-        from .shapes import Shapes
-        from .losses import Loss
-        from .nn.mlp import MLP
-
         self.cfg = cfg.ENV
         self.primitives_manager = PrimitivesManager()
 
