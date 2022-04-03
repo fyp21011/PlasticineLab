@@ -5,7 +5,7 @@ import numpy as np
 import yaml
 from yacs.config import CfgNode as CN
 
-class Primitives(Controller):
+class PrimitivesController(Controller):
     def __init__(self, cfgs, max_timesteps=1024):
         super().__init__()
         outs = []

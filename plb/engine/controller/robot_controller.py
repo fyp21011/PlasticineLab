@@ -10,7 +10,7 @@ from plb.config.utils import make_cls_config
 from .controller import Controller
 from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
 from plb.engine.primitive.primitives import Box, Sphere, Cylinder, Primitive
-from .primitive_controller import Primitives
+from .primitive_controller import PrimitivesController
 
 ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
@@ -76,7 +76,7 @@ class RobotsController(Controller):
         return len(self.robots) > 0
 
     @classmethod
-    def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: Primitives) -> "RobotsController":
+    def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: PrimitivesController) -> "RobotsController":
         """ Parse the YAML configuration node for `Robots`
         
         Load the robots from the URDF files specified by the `Robots` config node

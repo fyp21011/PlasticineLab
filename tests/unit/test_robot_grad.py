@@ -1,14 +1,14 @@
 import taichi
 import torch
 
-from plb.engine.controller.primitive_controller import Primitives
+from plb.engine.controller.primitive_controller import PrimitivesController
 from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot
 
 taichi.init()
 
 def test_robot_and_primitives():
-    primitives = Primitives([]) # empty primitives
+    primitives = PrimitivesController([]) # empty primitives
     robot = DiffRobot.load("tests/data/ur5/ur5_primitive.urdf")
     rc = RobotsController()
     for shape in rc.append_robot(robot, (0.0, 0.0, 0.0)):

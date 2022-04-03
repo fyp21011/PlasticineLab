@@ -18,14 +18,14 @@ class TaichiEnv:
         # move it inside can improve speed; don't know why..
         from .mpm_simulator import MPMSimulator
         from .controller.robot_controller import RobotsController
-        from .controller.primitive_controller import Primitives
+        from .controller.primitive_controller import PrimitivesController
         from .renderer import Renderer
         from .shapes import Shapes
         from .losses import Loss
         from .nn.mlp import MLP
 
         self.cfg = cfg.ENV
-        self.primitives = Primitives(cfg.PRIMITIVES)
+        self.primitives = PrimitivesController(cfg.PRIMITIVES)
         controller = RobotsController.parse_config(cfg.ROBOTS, self.primitives)
         self.action_dims = self.primitives.action_dims.copy()
         controller.export_action_dims(to = self.action_dims)

@@ -7,7 +7,7 @@ import taichi as ti
 from ...config.utils import CfgNode as CN
 from ..mpm_simulator import MPMSimulator
 from ..primitive.primitives import Chopsticks
-from ..controller.primitive_controller import Primitives
+from ..controller.primitive_controller import PrimitivesController
 
 @ti.data_oriented
 class MLP:
@@ -16,7 +16,7 @@ class MLP:
     """
     def __init__(self,
                  simulator: MPMSimulator,
-                 primitives: Primitives,
+                 primitives: PrimitivesController,
                  hidden_dims: Tuple[int, ...],
                  activation: Optional[str]='relu',
                  n_observed_particles=200,
