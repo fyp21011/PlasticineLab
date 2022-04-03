@@ -32,10 +32,11 @@ def test_robot_env_step():
     cfg = PlasticineEnv.load_varaints('rope_robot.yml', 1)
     tcEnv = TaichiEnv(cfg, False, False)
     robot_controller = tcEnv.simulator.rc
+    primitive_controller = tcEnv.simulator.fpc
 
     def simulator_step_checker(**kwargs):
         actions = kwargs['action']
-        return actions.shape == (tcEnv.primitive_controller.action_dim + sum(
+        return actions.shape == (primitive_controller.action_dim + sum(
                     robot_controller.robot_action_dims
                 ), )
 
