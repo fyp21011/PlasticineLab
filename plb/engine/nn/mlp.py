@@ -3,11 +3,13 @@ Neural network implemented with Taichi
 """
 from typing import Tuple, Optional
 import numpy as np
-from plb.engine.primitive.primitives_manager import PrimitivesManager
 import taichi as ti
+
+from plb.engine.primitives_manager import PrimitivesManager
 from ...config.utils import CfgNode as CN
 from ..mpm_simulator import MPMSimulator
 from ..primitive.primitive import Chopsticks
+
 
 @ti.data_oriented
 class MLP:

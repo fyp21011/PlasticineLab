@@ -4,9 +4,6 @@ import taichi as ti
 import torch
 
 from .mpm_simulator import MPMSimulator
-from .primitive.primitives_manager import PrimitivesManager
-from .controller.robot_controller import RobotsController
-from .controller.primitive_controller import PrimitivesController
 from .renderer import Renderer
 from .shapes import Shapes
 from .losses import Loss

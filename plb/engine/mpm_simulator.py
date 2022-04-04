@@ -3,7 +3,7 @@ import taichi as ti
 import torch
 import torch.nn as nn
 
-from plb.engine.primitive.primitives_manager import PrimitivesManager
+from plb.engine.primitives_manager import PrimitivesManager
 from plb.engine.controller.primitive_controller import PrimitivesController
 from plb.engine.controller.robot_controller import RobotsController
 

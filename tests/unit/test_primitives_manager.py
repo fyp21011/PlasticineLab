@@ -1,6 +1,6 @@
 import taichi
 
-from plb.engine.primitive.primitives_manager import PrimitivesManager
+from plb.engine.primitives_manager import PrimitivesManager
 from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot, Mesh
 
