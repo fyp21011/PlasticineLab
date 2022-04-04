@@ -21,22 +21,16 @@ class TaichiEnv:
         """
         A taichi env builds scene according the configuration and the set of manipulators
         """
-        self.cfg = cfg.ENV
-        self.primitives_manager = PrimitivesManager()
-
-        primitive_controller = PrimitivesController(cfg.PRIMITIVES)
-        self.primitives_manager.register_free_primitives(primitive_controller)
-        robot_controller = RobotsController.parse_config(cfg.ROBOTS)
-        self.primitives_manager.register_robot_primitives(robot_controller)
-
-        self.action_dims = self.primitives_manager.action_dims
         self.shapes = Shapes(cfg.SHAPES)
         self.init_particles, self.particle_colors = self.shapes.get()
 
         cfg.SIMULATOR.defrost()
         self.n_particles = cfg.SIMULATOR.n_particles = len(self.init_particles)
 
-        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitives_manager, robot_controller, primitive_controller)
+        self.simulator = MPMSimulator(cfg)
+        self.action_dims = self.simulator.action_dims
+
+        self.primitives_manager = self.simulator.primitives_manager
         self.renderer = Renderer(cfg.RENDERER, self.primitives_manager)
 
         if nn:

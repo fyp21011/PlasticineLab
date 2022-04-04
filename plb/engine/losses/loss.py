@@ -17,11 +17,8 @@ class Loss:
         self.grid_mass = sim.grid_m
         self.particle_x = sim.x
 
-        self.primitives = []
-        for i in range(len(sim.primitives)):
-            primitive = sim.primitives[i]
-            if primitive.action_dim > 0: # only consider the moveable one
-                self.primitives.append(primitive)
+        # only consider the moveable primitives
+        self.primitives = [p for p in sim.primitives_manager if p.action_dim > 0]
 
         self.compute_grid_mass = sim.compute_grid_m_kernel
 
