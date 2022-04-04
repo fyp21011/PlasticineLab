@@ -105,7 +105,7 @@ class VisRecordable:
         return cls._on
     
     @classmethod
-    def current_frame_idx(self) -> int:
+    def current_frame_idx(cls) -> int:
         """ Get the current time in frames
 
         The frame is counted as the time difference
@@ -115,7 +115,7 @@ class VisRecordable:
         If the recorder is not turned on yet, return
         -1. 
         """
-        if not self._on:
+        if not cls._on:
             return -1
         else:
-            return int((time.time() - self._start_time) * FRAME_PER_SECOND)
+            return int((time.time() - cls._start_time) * FRAME_PER_SECOND)

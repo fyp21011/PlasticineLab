@@ -320,7 +320,7 @@ class DiffLink(VisRecordable):
         # return self.velocities[-1]
         if self.is_recording():
             for name in self._name_2_vis.keys():
-                UpdateRigidBodyPoseMessage(name, pose, self.current_frame_idx())
+                UpdateRigidBodyPoseMessage(name, pose.tolist(), self.current_frame_idx()).send()
 
 class DiffRobot(Robot):
     """ The robot with differentiable forward kinematics
