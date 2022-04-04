@@ -1,5 +1,6 @@
 from .controller import Controller
 from plb.engine.primitive.primitive import Box, Sphere, Cylinder
+# DO NOT PRUNE THIS LINE, otherwise the `eval` fails
 
 import numpy as np
 import yaml

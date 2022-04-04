@@ -56,6 +56,10 @@ class RobotsController(Controller):
         super().__init__()
         self.robots: List[DiffRobot] = []
         self.robot_action_dims: List[int] = [] # not [0]
+        """ for the i-th robot in `self.robots`, 
+        `self.robot_action_dims[i]` gives the numbe
+        action dimensions of the robot. 
+        """
         self.link_2_primitives: List[Dict[str, Primitive]] = []
         """ `link_2_primitives[RobotIdx][LinkName]` returns the primivite
         corresponds to the collision geometry of the link named as `LinkName`
