@@ -6,6 +6,7 @@ import torch
 from plb.urdfpy import DiffRobot
 from plb.urdfpy.diff_fk import _tensor_creator
 from plb.utils import VisRecordable
+from protocol import FinishAnimationMessage
 
 robot = DiffRobot.load('tests/data/ur5/ur5.urdf')
 with open('tests/data/ur5/real.pkl', 'rb') as f:
@@ -21,4 +22,6 @@ for a in actions:
     robot.link_fk_diff(joint_action)
     sleep(1)
 
-
+last = VisRecordable.current_frame_idx() + 1
+print("last frame idx is ", last)
+FinishAnimationMessage("unit_test_vis_recording", last).send()
