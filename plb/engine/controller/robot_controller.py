@@ -83,15 +83,11 @@ class RobotsController(Controller):
     def parse_config(cls, cfgs: List[Union[CN, str]]) -> "RobotsController":
         """ Parse the YAML configuration node for `Robots`
         
-        Load the robots from the URDF files specified by the `Robots` config node
-        and insert the collision shapes into the primitive_controller as primitive
-        shapes. 
+        Load the robots from the URDF files specified by the `Robots` config node.
 
         Params
         ------
         cfgs: the YAML list titled `Robots` in the env configuration file
-        primitive_controller: the Primitives from TaichiEnv, which is pared
-            from the `Primitives` list in the env configuration file
         """
         outs = []
         for eachCfg in cfgs:
