@@ -1,10 +1,8 @@
-import taichi
+import taichi as ti
 
 from plb.engine.primitives_manager import PrimitivesManager
 from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot, Mesh
-
-taichi.init()
 
 
 def test_primitive_management_w_free_primitives():
@@ -13,6 +11,7 @@ def test_primitive_management_w_free_primitives():
 
 
 def test_primitive_management_w_single_robot():
+    ti.init()
     pm = PrimitivesManager()
     rc = RobotsController()
     robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
@@ -39,25 +38,11 @@ def test_primitive_management_w_single_robot():
             assert linkName in rc.link_2_primitives[0],\
                 f"{linkName} of the loaded robot not in rc.link_2_primitive"
 
-    # test action dims
-    robotActionDim = sum((
-        joint.action_dim for joint in robot.actuated_joints
-    ))
-    assert len(pm.action_dims) == 2,\
-        f"after appending robot's action dims, the action_dims become {pm.action_dims},"+\
-        f" but expecting [0, {robotActionDim}]"
-    
-    # pretending there are 3 3-DoF primitives already
-    pm = PrimitivesManager()
-    pm.action_dims = [0,3,6,9] 
-    pm.register_robot_primitives(rc)
-    assert len(pm.action_dims) == 5,\
-        f"after appending robot's action dims, the action_dims become {pm.action_dims},"+\
-        f" but expecting [0, 3, 6, 9, {robotActionDim}]"
-
+    ti.reset()
 
 
 def test_primitive_management_w_dual_robot():
+    ti.init()
     pm = PrimitivesManager()
     rc = RobotsController()
     robotA = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
@@ -94,24 +79,7 @@ def test_primitive_management_w_dual_robot():
             assert linkName in rc.link_2_primitives[1],\
                 f"{linkName} of the loaded robot not in rc.link_2_primitive"
 
-    # test action dims
-    robotActionDim = sum((
-        joint.action_dim for joint in robotA.actuated_joints
-    ))
-    assert len(pm.action_dims) == 3 and \
-        pm.action_dims[1] - pm.action_dims[0] == pm.action_dims[2] - pm.action_dims[1] == robotActionDim,\
-        f"after appending robot's action dims, the action_dims become {pm.action_dims},"+\
-        f" but expecting [0, {robotActionDim, robotActionDim}]"
-    
-    # pretending there are 3 3-DoF primitives already
-    pm = PrimitivesManager()
-    pm.action_dims = [0,3,6,9] 
-    pm.register_robot_primitives(rc)
-    assert len(pm.action_dims) == 6 and \
-        pm.action_dims[5] - pm.action_dims[4] == pm.action_dims[4] - pm.action_dims[3] == robotActionDim,\
-        f"after appending robot's action dims, the action_dims become {pm.action_dims},"+\
-        f" but expecting [0, 3, 6, 9, {robotActionDim}, {robotActionDim}]"
-
+    ti.reset()
 
 def test_primitive_management_w_free_primitives_and_robot():
     pass #TODO

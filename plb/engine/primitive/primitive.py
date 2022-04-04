@@ -327,6 +327,7 @@ class Sphere(Primitive):
     @classmethod
     def default_config(cls):
         cfg = Primitive.default_config()
+        cfg.shape = 'Sphere'
         cfg.radius = 1.
         return cfg
 
@@ -482,6 +483,7 @@ class Cylinder(Primitive):
     @classmethod
     def default_config(cls):
         cfg = Primitive.default_config()
+        cfg.shape = 'Cylinder'
         cfg.h = 0.2
         cfg.r = 0.1
         return cfg

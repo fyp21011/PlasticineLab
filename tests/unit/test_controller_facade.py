@@ -7,9 +7,8 @@ from plb.engine.controller.robot_controller import RobotsController
 from plb.engine.primitive.primitive import Sphere, Cylinder
 from plb.urdfpy import DiffRobot
 
-ti.init()
-
 def test_controller_facade_single_primitive():
+    ti.init()
     sphere_cfg = Sphere.default_config()
     sphere_cfg.action.dim = 3
     fpc = PrimitivesController([sphere_cfg])
@@ -24,9 +23,11 @@ def test_controller_facade_single_primitive():
     action = np.ones(facade.action_dim)
     facade.set_action(0, 20, action)
     assert fpc.primitives[0].action_buffer[0][0] == 1
+    ti.reset()
 
 
 def test_controller_facade_single_robot():
+    ti.init()
     fpc = None
     rc = RobotsController()
     robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
@@ -40,8 +41,11 @@ def test_controller_facade_single_robot():
 
     #TODO: test set_action
 
+    ti.reset()
+
 
 def test_controller_facade_fpc_and_rc():
+    ti.init()
     sphere_cfg = Sphere.default_config()
     sphere_cfg.action.dim = 3
     fpc = PrimitivesController([Cylinder.default_config(), sphere_cfg, sphere_cfg], max_timesteps=2)
@@ -67,3 +71,5 @@ def test_controller_facade_fpc_and_rc():
     assert fpc.primitives[1].action_buffer[0][0] == 1
     assert fpc.primitives[2].action_buffer[0][0] == 1
     # TODO: test robot action
+
+    ti.reset()
