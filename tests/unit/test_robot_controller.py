@@ -45,12 +45,10 @@ def test_deflatten_robot_actions():
 def test_single_robot():
     rc = RobotsController()
     robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
-
+    rc.append_robot(robot)
 
     # test append robot
-    linkCnt = sum((
-        1 for _ in rc.append_robot(robot)
-    ))
+    linkCnt = sum(len(mapping) for mapping in rc.link_2_primitives)
     truePrimitiveCnt = sum((
         sum((1 for c in link.collisions if not isinstance(c.geometry.geometry, Mesh))) for link in robot.links
     ))
@@ -69,19 +67,19 @@ def test_single_robot():
                 f"{linkName} of the loaded robot not in rc.link_2_primitive"
 
     # test append action dims
-    action_dims = [0]
+    # action_dims = [0]
     robotActionDim = sum((
         joint.action_dim for joint in robot.actuated_joints
     ))
-    rc.export_action_dims(action_dims)
-    assert len(action_dims) == 2,\
-        f"after appending robot's action dims, the action_dims become {action_dims},"+\
-        f" but expecting [0, {robotActionDim}]"
-    action_dims = [0,3,6,9] # pretending there are 3 3-DoF primitives already
-    rc.export_action_dims(action_dims)
-    assert len(action_dims) == 5,\
-        f"after appending robot's action dims, the action_dims become {action_dims},"+\
-        f" but expecting [0, 3, 6, 9, {robotActionDim}]"
+    # rc.export_action_dims(action_dims)
+    # assert len(action_dims) == 2,\
+    #     f"after appending robot's action dims, the action_dims become {action_dims},"+\
+    #     f" but expecting [0, {robotActionDim}]"
+    # action_dims = [0,3,6,9] # pretending there are 3 3-DoF primitives already
+    # rc.export_action_dims(action_dims)
+    # assert len(action_dims) == 5,\
+    #     f"after appending robot's action dims, the action_dims become {action_dims},"+\
+    #     f" but expecting [0, 3, 6, 9, {robotActionDim}]"
     
     # test set robot actions
     envAction = [
@@ -109,13 +107,11 @@ def test_single_robot():
 def test_dual_robot():
     rc = RobotsController()
     robotA = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
+    rc.append_robot(robotA)
     robotB = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
+    rc.append_robot(robotB)
     
-    linkCnt = sum((
-        1 for _ in rc.append_robot(robotA)
-    )) + sum ((
-        1 for _ in rc.append_robot(robotB)
-    ))
+    linkCnt = sum(len(mapping) for mapping in rc.link_2_primitives)
     truePrimitiveCnt = sum((
         sum((1 for c in link.collisions if not isinstance(c.geometry.geometry, Mesh))) for link in robotA.links
     )) + sum((
@@ -142,21 +138,21 @@ def test_dual_robot():
             assert linkName in rc.link_2_primitives[1],\
                 f"{linkName} of the loaded robot not in rc.link_2_primitive"
 
-    action_dims = [0]
+    # action_dims = [0]
     robotActionDim = sum((
         joint.action_dim for joint in robotA.actuated_joints
     ))
-    rc.export_action_dims(action_dims)
-    assert len(action_dims) == 3 and \
-        action_dims[1] - action_dims[0] == action_dims[2] - action_dims[1] == robotActionDim,\
-        f"after appending robot's action dims, the action_dims become {action_dims},"+\
-        f" but expecting [0, {robotActionDim, robotActionDim}]"
-    action_dims = [0,3,6,9] # pretending there are 3 3-DoF primitives already
-    rc.export_action_dims(action_dims)
-    assert len(action_dims) == 6 and \
-        action_dims[5] - action_dims[4] == action_dims[4] - action_dims[3] == robotActionDim,\
-        f"after appending robot's action dims, the action_dims become {action_dims},"+\
-        f" but expecting [0, 3, 6, 9, {robotActionDim}, {robotActionDim}]"
+    # rc.export_action_dims(action_dims)
+    # assert len(action_dims) == 3
+    # assert action_dims[1] - action_dims[0] == action_dims[2] - action_dims[1] == robotActionDim,\
+    #     f"after appending robot's action dims, the action_dims become {action_dims},"+\
+    #     f" but expecting [0, {robotActionDim, robotActionDim}]"
+    # action_dims = [0,3,6,9] # pretending there are 3 3-DoF primitives already
+    # rc.export_action_dims(action_dims)
+    # assert len(action_dims) == 6 and \
+    #     action_dims[5] - action_dims[4] == action_dims[4] - action_dims[3] == robotActionDim,\
+    #     f"after appending robot's action dims, the action_dims become {action_dims},"+\
+    #     f" but expecting [0, 3, 6, 9, {robotActionDim}, {robotActionDim}]"
     
     envAction = [
         torch.rand((1,), device='cuda', dtype=torch.float64, requires_grad=True)

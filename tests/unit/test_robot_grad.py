@@ -1,26 +1,23 @@
 import taichi
 import torch
 
-from plb.engine.controller.primitive_controller import PrimitivesController
+from plb.engine.primitives_manager import PrimitivesManager
 from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot
 
 taichi.init()
 
 def test_robot_and_primitives():
-    primitives = PrimitivesController([]) # empty primitives
+    primitives = PrimitivesManager()
     robot = DiffRobot.load("tests/data/ur5/ur5_primitive.urdf")
     rc = RobotsController()
-    for shape in rc.append_robot(robot, (0.0, 0.0, 0.0)):
-        primitives.primitives.append(shape)
-    assert primitives.n == 0, f"No free primitives expected, but got {primitives.n}"
-    assert len(primitives.primitives) == 8, \
-        f"8 primitives from the robot is expected, but got {len(primitives.primitives)}"
+    rc.append_robot(robot, (0.0, 0.0, 0.0))
+    primitives.register_robot_primitives(rc)
 
-    action_dims = primitives.action_dims.copy()
-    assert len(action_dims) == 1 and action_dims[0] == 0, \
-        f"primitives.action_dims is expected to be [0], but got {action_dims}"
-    rc.export_action_dims(to = action_dims)
+    assert len(primitives) == 8, \
+        f"8 primitives from the robot is expected, but got {len(primitives)}"
+
+    action_dims = primitives.action_dims
     assert len(action_dims) == 2 and action_dims[0] == 0 and action_dims[1] == 6, \
         f"action_dims after the robot's exporting is expected to be [0,6], but got {action_dims}"
 

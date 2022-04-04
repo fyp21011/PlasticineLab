@@ -100,7 +100,7 @@ class RobotsController(Controller):
         rc = RobotsController()
         for eachOutCfg in outs:
             diffRobot = DiffRobot.load(eachOutCfg.path)
-            list(rc.append_robot(diffRobot, eachOutCfg.offset))
+            rc.append_robot(diffRobot, eachOutCfg.offset)
         return rc
 
     @classmethod
@@ -178,7 +178,6 @@ class RobotsController(Controller):
                 linkPrimitive = self._urdf_collision_to_primitive(link.collisions[0], offset_, link.init_pose)
                 if linkPrimitive is not None:
                     self.link_2_primitives[-1][linkName] = linkPrimitive
-                    yield linkPrimitive
 
     @staticmethod
     def _deflatten_robot_actions(robot: Robot, robotActions: torch.Tensor) -> List:

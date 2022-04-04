@@ -16,7 +16,7 @@ def test_primitive_management_w_single_robot():
     pm = PrimitivesManager()
     rc = RobotsController()
     robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
-    list(rc.append_robot(robot))
+    rc.append_robot(robot)
 
     pm.register_robot_primitives(rc)
 
@@ -62,8 +62,8 @@ def test_primitive_management_w_dual_robot():
     rc = RobotsController()
     robotA = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
     robotB = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
-    list(rc.append_robot(robotA))
-    list(rc.append_robot(robotB))
+    rc.append_robot(robotA)
+    rc.append_robot(robotB)
     pm.register_robot_primitives(rc)
     
     # test number of primitives
@@ -111,7 +111,6 @@ def test_primitive_management_w_dual_robot():
         pm.action_dims[5] - pm.action_dims[4] == pm.action_dims[4] - pm.action_dims[3] == robotActionDim,\
         f"after appending robot's action dims, the action_dims become {pm.action_dims},"+\
         f" but expecting [0, 3, 6, 9, {robotActionDim}, {robotActionDim}]"
-
 
 
 def test_primitive_management_w_free_primitives_and_robot():
