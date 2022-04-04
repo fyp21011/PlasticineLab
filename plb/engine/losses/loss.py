@@ -18,7 +18,7 @@ class Loss:
         self.particle_x = sim.x
 
         # only consider the moveable primitives
-        self.primitives = [p for p in sim.primitives_manager if p.action_dim > 0]
+        self.primitives = [p for p in sim.primitives_facade if p.action_dim > 0]
 
         self.compute_grid_mass = sim.compute_grid_m_kernel
 

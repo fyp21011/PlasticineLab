@@ -26,11 +26,11 @@ class TaichiEnv:
 
         self.simulator = MPMSimulator(cfg)
 
-        self.primitives_manager = self.simulator.primitives_manager
-        self.renderer = Renderer(cfg.RENDERER, self.primitives_manager)
+        self.primitives_facade = self.simulator.primitives_facade
+        self.renderer = Renderer(cfg.RENDERER, self.primitives_facade)
 
         if nn:
-            self.nn = MLP(self.simulator, self.primitives_manager, (256, 256))
+            self.nn = MLP(self.simulator, self.primitives_facade, (256, 256))
 
         if loss:
             self.loss = Loss(cfg.ENV.loss, self.simulator)
@@ -47,7 +47,7 @@ class TaichiEnv:
 
     def initialize(self):
         # initialize all taichi variable according to configurations..
-        self.primitives_manager.initialize()
+        self.primitives_facade.initialize()
         self.simulator.initialize()
         self.renderer.initialize()
         if self.loss:
@@ -87,7 +87,7 @@ class TaichiEnv:
         x = self.simulator.get_x(t, needs_grad=False)
         v = self.simulator.get_v(t, needs_grad=False)
         outs = []
-        for i in self.primitives_manager: 
+        for i in self.primitives_facade: 
             outs.append(i.get_state(t, needs_grad=False))
         s = np.concatenate(outs)
         step_size = len(x) // n_observed_particles
@@ -110,14 +110,14 @@ class TaichiEnv:
         assert self.simulator.cur == 0
         return {
             'state': self.simulator.get_state(0),
-            'softness': self.primitives_manager.get_softness(),
+            'softness': self.primitives_facade.get_softness(),
             'is_copy': self._is_copy
         }
 
     def set_state(self, state, softness, is_copy):
         self.simulator.cur = 0
         self.simulator.set_state(0, state)
-        self.primitives_manager.set_softness(softness)
+        self.primitives_facade.set_softness(softness)
         self._is_copy = is_copy
         if self.loss:
             self.loss.reset()

@@ -5,7 +5,7 @@ from typing import Tuple, Optional
 import numpy as np
 import taichi as ti
 
-from plb.engine.primitives_manager import PrimitivesManager
+from plb.engine.primitives_facade import PrimitivesFacade
 from ...config.utils import CfgNode as CN
 from ..mpm_simulator import MPMSimulator
 from ..primitive.primitive import Chopsticks
@@ -18,7 +18,7 @@ class MLP:
     """
     def __init__(self,
                  simulator: MPMSimulator,
-                 primitives: PrimitivesManager,
+                 primitives: PrimitivesFacade,
                  hidden_dims: Tuple[int, ...],
                  activation: Optional[str]='relu',
                  n_observed_particles=200,

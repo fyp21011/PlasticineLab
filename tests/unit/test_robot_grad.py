@@ -1,14 +1,14 @@
 import taichi as ti
 import torch
 
-from plb.engine.primitives_manager import PrimitivesManager
+from plb.engine.primitives_facade import PrimitivesFacade
 from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot
 
 
 def test_robot_and_primitives():
     ti.init()
-    primitives = PrimitivesManager()
+    primitives = PrimitivesFacade()
     robot = DiffRobot.load("tests/data/ur5/ur5_primitive.urdf")
     rc = RobotsController()
     rc.append_robot(robot, (0.0, 0.0, 0.0))

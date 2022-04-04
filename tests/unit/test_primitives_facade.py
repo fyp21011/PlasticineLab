@@ -1,6 +1,6 @@
 import taichi as ti
 
-from plb.engine.primitives_manager import PrimitivesManager
+from plb.engine.primitives_facade import PrimitivesFacade
 from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot, Mesh
 
@@ -12,7 +12,7 @@ def test_primitive_management_w_free_primitives():
 
 def test_primitive_management_w_single_robot():
     ti.init()
-    pm = PrimitivesManager()
+    pm = PrimitivesFacade()
     rc = RobotsController()
     robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
     rc.append_robot(robot)
@@ -43,7 +43,7 @@ def test_primitive_management_w_single_robot():
 
 def test_primitive_management_w_dual_robot():
     ti.init()
-    pm = PrimitivesManager()
+    pm = PrimitivesFacade()
     rc = RobotsController()
     robotA = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
     robotB = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')

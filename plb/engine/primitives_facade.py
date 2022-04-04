@@ -2,7 +2,7 @@ from plb.engine.controller.primitive_controller import PrimitivesController
 from plb.engine.controller.robot_controller import RobotsController
 
 
-class PrimitivesManager():
+class PrimitivesFacade():
     """Please register free primitives before robots"""
     def __init__(self):
         super().__init__()

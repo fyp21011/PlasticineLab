@@ -3,7 +3,7 @@ import taichi as ti
 import torch
 import torch.nn as nn
 
-from plb.engine.primitives_manager import PrimitivesManager
+from plb.engine.primitives_facade import PrimitivesFacade
 from plb.engine.controller_facade import ControllersFacade
 from plb.engine.controller.primitive_controller import PrimitivesController
 from plb.engine.controller.robot_controller import RobotsController
@@ -73,11 +73,11 @@ class MPMSimulator:
         self.gravity = ti.Vector.field(dim, dtype=dtype, shape=())
 
         # controllers
-        self.primitives_manager = PrimitivesManager()
+        self.primitives_facade = PrimitivesFacade()
         self.fpc = PrimitivesController(cfg.PRIMITIVES)
-        self.primitives_manager.register_free_primitives(self.fpc)
+        self.primitives_facade.register_free_primitives(self.fpc)
         self.rc = RobotsController.parse_config(cfg.ROBOTS)
-        self.primitives_manager.register_robot_primitives(self.rc)
+        self.primitives_facade.register_robot_primitives(self.rc)
 
         self.controllers_facade = ControllersFacade()
         self.controllers_facade.register_controllers(self.fpc, self.rc)
@@ -252,8 +252,8 @@ class MPMSimulator:
                 v_out = (1 / self.grid_m[I]) * self.grid_v_in[I]
                 v_out += self.dt * self.gravity[None] * 30  # gravity
 
-                for i in ti.static(range(len(self.primitives_manager))):
-                    v_out = self.primitives_manager[i].collide(
+                for i in ti.static(range(len(self.primitives_facade))):
+                    v_out = self.primitives_facade[i].collide(
                         f, I * self.dx, v_out, self.dt)
 
                 bound = 3
@@ -370,8 +370,8 @@ class MPMSimulator:
             self.F[target, i] = self.F[source, i]
             self.C[target, i] = self.C[source, i]
 
-        for i in ti.static(range(len(self.primitives_manager))):
-            self.primitives_manager[i].copy_frame(source, target)
+        for i in ti.static(range(len(self.primitives_facade))):
+            self.primitives_facade[i].copy_frame(source, target)
 
     def get_state(self, f):
         x = np.zeros((self.n_particles, self.dim), dtype=np.float64)
@@ -380,13 +380,13 @@ class MPMSimulator:
         C = np.zeros((self.n_particles, self.dim, self.dim), dtype=np.float64)
         self.readframe(f, x, v, F, C)
         out = [x, v, F, C]
-        for i in self.primitives_manager:
+        for i in self.primitives_facade:
             out.append(i.get_state(f))
         return out
 
     def set_state(self, f, state):
         self.setframe(f, *state[:4])
-        for s, i in zip(state[4:], self.primitives_manager):
+        for s, i in zip(state[4:], self.primitives_facade):
             i.set_state(f, s)
 
     @ti.kernel
@@ -524,11 +524,11 @@ class MPMSimulator:
     @ti.kernel
     def set_input_primitives_grad(self,t: ti.i32,grad:ti.ext_arr()):
         base = self.obs_num * 6
-        for i in ti.static(range(len(self.primitives_manager))):
+        for i in ti.static(range(len(self.primitives_facade))):
             for j in ti.static(range(3)):
-                self.primitives_manager[i].position.grad[t*self.substeps][j] += grad[base+i*7+j]
+                self.primitives_facade[i].position.grad[t*self.substeps][j] += grad[base+i*7+j]
             for j in ti.static(range(4)):
-                self.primitives_manager[i].rotation.grad[t*self.substeps][j] += grad[base+i*7+3+j]
+                self.primitives_facade[i].rotation.grad[t*self.substeps][j] += grad[base+i*7+3+j]
 
 
 
