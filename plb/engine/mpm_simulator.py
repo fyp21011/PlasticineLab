@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 from plb.engine.primitives_manager import PrimitivesManager
+from plb.engine.controller_facade import ControllersFacade
 from plb.engine.controller.primitive_controller import PrimitivesController
 from plb.engine.controller.robot_controller import RobotsController
 
@@ -78,7 +79,10 @@ class MPMSimulator:
         self.rc = RobotsController.parse_config(cfg.ROBOTS)
         self.primitives_manager.register_robot_primitives(self.rc)
 
-        self.action_dims = self.primitives_manager.action_dims
+        self.controllers_facade = ControllersFacade()
+        self.controllers_facade.register_controllers(self.fpc, self.rc)
+
+        self.action_dims = self.controllers_facade.accu_action_dims
 
         # torch neural net
         self.nn = None
@@ -450,10 +454,7 @@ class MPMSimulator:
         self.cur = start + self.substeps
 
         if action is not None:
-            self.fpc.set_action(start//self.substeps, self.substeps, 
-                action[:self.fpc.action_dim])
-            self.rc.set_action(start//self.substeps, self.substeps, 
-                action[self.fpc.action_dim:])
+            self.controllers_facade.set_action(start//self.substeps, self.substeps, action)
 
         for s in range(start, self.cur):
             self.substep(s)

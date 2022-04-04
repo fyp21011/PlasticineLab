@@ -37,6 +37,7 @@ class ControllersFacade():
         return self.accu_action_dims[-1]
     
     def set_action(self, s, n_substeps, action):
+        assert len(action) == self.action_dim, f"Expected action length to be {self.action_dim}, but got {len(action)}"
         if self.fpc != None:
             fpc_action = action[self.fpc_action_range[0]:self.fpc_action_range[1]]
             self.fpc.set_action(s, n_substeps, fpc_action)

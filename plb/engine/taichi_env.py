@@ -25,7 +25,6 @@ class TaichiEnv:
         self.n_particles = cfg.SIMULATOR.n_particles = len(self.init_particles)
 
         self.simulator = MPMSimulator(cfg)
-        self.action_dims = self.simulator.action_dims
 
         self.primitives_manager = self.simulator.primitives_manager
         self.renderer = Renderer(cfg.RENDERER, self.primitives_manager)
@@ -41,7 +40,7 @@ class TaichiEnv:
     
     @property
     def action_dim(self) -> int:
-        return self.action_dims[-1]
+        return self.simulator.controllers_facade.action_dim
 
     def set_copy(self, is_copy: bool):
         self._is_copy = is_copy
