@@ -4,9 +4,12 @@ Neural network implemented with Taichi
 from typing import Tuple, Optional
 import numpy as np
 import taichi as ti
+
+from plb.engine.primitives_facade import PrimitivesFacade
 from ...config.utils import CfgNode as CN
 from ..mpm_simulator import MPMSimulator
-from ..primitive.primitives import Primitives, Chopsticks
+from ..primitive.primitive import Chopsticks
+
 
 @ti.data_oriented
 class MLP:
@@ -15,7 +18,7 @@ class MLP:
     """
     def __init__(self,
                  simulator: MPMSimulator,
-                 primitives: Primitives,
+                 primitives: PrimitivesFacade,
                  hidden_dims: Tuple[int, ...],
                  activation: Optional[str]='relu',
                  n_observed_particles=200,
@@ -23,7 +26,7 @@ class MLP:
         self.simulator = simulator
         self.primitives = primitives
         #TODO: several env is not supported...
-        for i in self.primitives.primitives:
+        for i in self.primitives:
             assert not isinstance(i, Chopsticks), "Chopstick is not supported now.."
         dtype = self.simulator.dtype
 

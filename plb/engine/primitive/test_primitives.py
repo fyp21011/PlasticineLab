@@ -42,7 +42,7 @@ def test_cfg(cls):
 
 
 ti.init(arch=ti.gpu, fast_math=False, debug=False)
-from plb.engine.primitive.primitives import Torus, Sphere, Capsule, RollingPin, Cylinder, Chopsticks
+from plb.engine.primitive.primitive import Torus, Sphere, Capsule, RollingPin, Cylinder, Chopsticks
 #test_cfg(Torus)
 #test_cfg(Sphere)
 #test_cfg(Capsule)

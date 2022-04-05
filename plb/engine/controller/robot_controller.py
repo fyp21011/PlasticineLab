@@ -7,9 +7,10 @@ import torch
 from yacs.config import CfgNode as CN
 
 from plb.config.utils import make_cls_config
-from plb.engine.controller import Controller
+from .controller import Controller
 from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
-from plb.engine.primitive.primitives import Box, Primitives, Sphere, Cylinder, Primitive
+from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive
+
 
 ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
@@ -54,7 +55,11 @@ class RobotsController(Controller):
     def __init__(self) -> None:
         super().__init__()
         self.robots: List[DiffRobot] = []
-        self.robot_action_dims: List[int] = []
+        self.robot_action_dims: List[int] = [] # not [0]
+        """ for the i-th robot in `self.robots`, 
+        `self.robot_action_dims[i]` gives the numbe
+        action dimensions of the robot. 
+        """
         self.link_2_primitives: List[Dict[str, Primitive]] = []
         """ `link_2_primitives[RobotIdx][LinkName]` returns the primivite
         corresponds to the collision geometry of the link named as `LinkName`
@@ -75,18 +80,14 @@ class RobotsController(Controller):
         return len(self.robots) > 0
 
     @classmethod
-    def parse_config(cls, cfgs: List[Union[CN, str]], primitiveController: Primitives) -> "RobotsController":
+    def parse_config(cls, cfgs: List[Union[CN, str]]) -> "RobotsController":
         """ Parse the YAML configuration node for `Robots`
         
-        Load the robots from the URDF files specified by the `Robots` config node
-        and insert the collision shapes into the primitiveController as primitive
-        shapes. 
+        Load the robots from the URDF files specified by the `Robots` config node.
 
         Params
         ------
         cfgs: the YAML list titled `Robots` in the env configuration file
-        primitiveController: the Primitives from TaichiEnv, which is pared
-            from the `Primitives` list in the env configuration file
         """
         outs = []
         for eachCfg in cfgs:
@@ -99,8 +100,7 @@ class RobotsController(Controller):
         rc = RobotsController()
         for eachOutCfg in outs:
             diffRobot = DiffRobot.load(eachOutCfg.path)
-            for shape in rc.append_robot(diffRobot, eachOutCfg.offset):
-                primitiveController.primitives.append(shape)
+            rc.append_robot(diffRobot, eachOutCfg.offset)
         return rc
 
     @classmethod
@@ -178,30 +178,6 @@ class RobotsController(Controller):
                 linkPrimitive = self._urdf_collision_to_primitive(link.collisions[0], offset_, link.init_pose)
                 if linkPrimitive is not None:
                     self.link_2_primitives[-1][linkName] = linkPrimitive
-                    yield linkPrimitive
-    
-    def export_action_dims(self, to: List[int] = [0]): 
-        """ Append the robots' action spaces to the actionDims list
-
-        For example, plb.engine.primitive.Primitives maintains an action_dims list
-        like [0, 3, 6, 8] which indicates the action[0:3] is for primitive[0], 
-        action[3:6] for primitive[1], action[6:8] for primitive[2]. 
-        
-        Assuming we now have two robots, one of 10 DoFs the other of 5, then, 
-        the action_dims should be appended to [0, 3, 6, 8, 18, 23]. 
-
-        Params
-        ------
-        to: the `action_dims` in `plb.engine.primitive.Primitives` where
-            the numbers of action dimensions of robots in this controller will
-            be appended.
-        """
-        if not self.robots:
-            return # no robots, so no effect on actionDims
-        assert len(to) > 0, "Cannot append to empty action dims list"
-        for dims in self.robot_action_dims:
-            to.append(to[-1] + dims)
-        return to
 
     @staticmethod
     def _deflatten_robot_actions(robot: Robot, robotActions: torch.Tensor) -> List:
