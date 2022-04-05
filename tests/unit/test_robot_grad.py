@@ -1,28 +1,24 @@
-import taichi
+import taichi as ti
 import torch
 
-from plb.engine.primitive import Primitives
-from plb.engine.robots import RobotsController
+from plb.engine.primitives_facade import PrimitivesFacade
+from plb.engine.controller.robot_controller import RobotsController
 from plb.urdfpy import DiffRobot
 
-taichi.init()
 
 def test_robot_and_primitives():
-    primitives = Primitives([]) # empty primitives
+    ti.init()
+    primitives = PrimitivesFacade()
     robot = DiffRobot.load("tests/data/ur5/ur5_primitive.urdf")
     rc = RobotsController()
-    for shape in rc.append_robot(robot, (0.0, 0.0, 0.0)):
-        primitives.primitives.append(shape)
-    assert primitives.n == 0, f"No free primitives expected, but got {primitives.n}"
-    assert len(primitives.primitives) == 8, \
-        f"8 primitives from the robot is expected, but got {len(primitives.primitives)}"
+    rc.append_robot(robot, (0.0, 0.0, 0.0))
+    primitives.register_robot_primitives(rc)
 
-    action_dims = primitives.action_dims.copy()
-    assert len(action_dims) == 1 and action_dims[0] == 0, \
-        f"primitives.action_dims is expected to be [0], but got {action_dims}"
-    rc.export_action_dims(to = action_dims)
-    assert len(action_dims) == 2 and action_dims[0] == 0 and action_dims[1] == 6, \
-        f"action_dims after the robot's exporting is expected to be [0,6], but got {action_dims}"
+    assert len(primitives) == 8, \
+        f"8 primitives from the robot is expected, but got {len(primitives)}"
+
+    action_dim = rc.robot_action_dims[0]
+    assert action_dim == 6, f"action_dim is expected to be 6, but instead is {action_dim}"
 
     primitives.initialize()
 
@@ -44,3 +40,5 @@ def test_robot_and_primitives():
     grad = rc.get_step_grad(1)
     assert len(grad) != 0 and all((each_grad != None for each_grad in grad)), \
         f"Gradient backpropagation fails: step[1] gradient = {grad}"
+
+    ti.reset()

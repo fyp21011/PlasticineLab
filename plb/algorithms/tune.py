@@ -9,8 +9,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from plb.envs import make
-from plb.optimizer.solver_torch_nn import solve_torch_nn
-from plb.optimizer.solver_lstm import solve_lstm
 from plb.optimizer.solver_torch_nnv2 import solve_torch_nnv2
 
 
