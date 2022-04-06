@@ -1,5 +1,5 @@
 from .controller import Controller
-from plb.engine.primitive.primitive import Box, Sphere, Cylinder
+from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Capsule, Chopsticks, RollingPin, Torus
 # DO NOT PRUNE THIS LINE, otherwise the `eval` fails
 
 import numpy as np
