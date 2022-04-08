@@ -3,7 +3,7 @@ import cv2
 import taichi as ti
 from ...config import load
 from .renderer import Renderer
-from ..primitive.primitives import Sphere
+from ..primitive.primitive import Sphere
 
 
 def test_render():

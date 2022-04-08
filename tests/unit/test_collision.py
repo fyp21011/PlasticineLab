@@ -1,8 +1,8 @@
 import taichi as ti
-from plb.engine.primitive.primitives import Sphere
+from plb.engine.primitive.primitive import Sphere
 from plb.engine.collision_manager import PrimitiveCollisionManager
-from plb.engine.robots import RobotsController
-from plb.urdfpy import DiffRobot, Link, FK_CFG_Type, Mesh
+from plb.engine.controller.robot_controller import RobotsController
+from plb.urdfpy import DiffRobot
 
 ti.init()
 
@@ -37,13 +37,14 @@ def test_sphere_collision_false():
         p.initialize()
     
     collision_env = PrimitiveCollisionManager(0, primitives)
-    
-    assert not collision_env.check_robot_collision()
+    collided, _ = collision_env.check_robot_collision()
+
+    assert not collided, f'Expected no collision but collided is {collided}'
 
 def test_robot_self_collsion():
     rc = RobotsController()
     robot = DiffRobot.load('tests/data/ur5/ur5_primitive.urdf')
-    list(rc.append_robot(robot))
+    rc.append_robot(robot)
     collision_primitives = rc.link_2_primitives[0]
 
     collision_env = PrimitiveCollisionManager(0, collision_primitives)
@@ -52,5 +53,3 @@ def test_robot_self_collsion():
     
     print(collided, contacts)
     assert collided
-
-# test_robot_self_collsion()

@@ -1,34 +1,30 @@
-from typing import Iterable
-
 import numpy as np
 import taichi as ti
 import torch
 import torch.nn as nn
 
-from plb.engine.controller import Controller
-from plb.engine.primitive.primive_base import Primitive
 from plb.engine.collision_manager import PrimitiveCollisionManager
+from plb.engine.primitives_facade import PrimitivesFacade
+from plb.engine.controller_facade import ControllersFacade
+from plb.engine.controller.primitive_controller import PrimitivesController
+from plb.engine.controller.robot_controller import RobotsController
+
 
 @ti.data_oriented
 class MPMSimulator:
-    def __init__(self,
-        cfg,
-        primitives: Iterable[Primitive]=(),
-        robots_controller: Controller=None, 
-        free_primitives_controller: Controller=None
-    ):
-        dim = self.dim = cfg.dim
-        assert cfg.dtype == 'float64'
-        dtype = self.dtype = ti.f64 if cfg.dtype == 'float64' else ti.f32
-        self._yield_stress = cfg.yield_stress
-        self.ground_friction = cfg.ground_friction
-        self.default_gravity = cfg.gravity
-        self.n_primitive = len(primitives)
+    def __init__(self, cfg):
+        self.cfg = cfg.SIMULATOR
+        dim = self.dim = self.cfg.dim
+        assert self.cfg.dtype == 'float64'
+        dtype = self.dtype = ti.f64 if self.cfg.dtype == 'float64' else ti.f32
+        self._yield_stress = self.cfg.yield_stress
+        self.ground_friction = self.cfg.ground_friction
+        self.default_gravity = self.cfg.gravity
 
-        quality = cfg.quality
+        quality = self.cfg.quality
         if self.dim == 3:
             quality = quality * 0.5
-        n_particles = self.n_particles = cfg.n_particles
+        n_particles = self.n_particles = self.cfg.n_particles
         n_grid = self.n_grid = int(128 * quality)
 
         self.dx, self.inv_dx = 1 / n_grid, float(n_grid)
@@ -37,7 +33,7 @@ class MPMSimulator:
         self.p_mass = self.p_vol * self.p_rho
 
         # material
-        E, nu = cfg.E, cfg.nu
+        E, nu = self.cfg.E, self.cfg.nu
         self._mu, self._lam = E / \
             (2 * (1 + nu)), E * nu / ((1 + nu) * (1 - 2 * nu))  # Lame parameters
         self.mu = ti.field(dtype=dtype, shape=(n_particles,), needs_grad=False)
@@ -46,7 +42,7 @@ class MPMSimulator:
         self.yield_stress = ti.field(
             dtype=dtype, shape=(n_particles,), needs_grad=False)
 
-        max_steps = self.max_steps = cfg.max_steps
+        max_steps = self.max_steps = self.cfg.max_steps
         self.substeps = int(2e-3 // self.dt)
         self.x = ti.Vector.field(dim, dtype=dtype, shape=(
             max_steps, n_particles), needs_grad=True)  # position
@@ -79,14 +75,16 @@ class MPMSimulator:
         self.gravity = ti.Vector.field(dim, dtype=dtype, shape=())
 
         # controllers
-        self.primitives = primitives
-        self.rc = robots_controller
-        """Robots Controller"""
-        self.fpc = free_primitives_controller if free_primitives_controller != None \
-            else primitives
-        """Free Primitives Controller, 
-        i.e. controller for those primitives belongs to no robots
-        """
+        self.primitives_facade = PrimitivesFacade()
+        self.fpc = PrimitivesController(cfg.PRIMITIVES)
+        self.primitives_facade.register_free_primitives(self.fpc)
+        self.rc = RobotsController.parse_config(cfg.ROBOTS)
+        self.primitives_facade.register_robot_primitives(self.rc)
+
+        self.controllers_facade = ControllersFacade()
+        self.controllers_facade.register_controllers(self.fpc, self.rc)
+
+        self.action_dims = self.controllers_facade.accu_action_dims
 
         # torch neural net
         self.nn = None
@@ -256,10 +254,9 @@ class MPMSimulator:
                 v_out = (1 / self.grid_m[I]) * self.grid_v_in[I]
                 v_out += self.dt * self.gravity[None] * 30  # gravity
 
-                if ti.static(self.n_primitive > 0):
-                    for i in ti.static(range(self.n_primitive)):
-                        v_out = self.primitives[i].collide(
-                            f, I * self.dx, v_out, self.dt)
+                for i in ti.static(range(len(self.primitives_facade))):
+                    v_out = self.primitives_facade[i].collide(
+                        f, I * self.dx, v_out, self.dt)
 
                 bound = 3
                 v_in2 = v_out
@@ -375,9 +372,8 @@ class MPMSimulator:
             self.F[target, i] = self.F[source, i]
             self.C[target, i] = self.C[source, i]
 
-        if ti.static(self.n_primitive > 0):
-            for i in ti.static(range(self.n_primitive)):
-                self.primitives[i].copy_frame(source, target)
+        for i in ti.static(range(len(self.primitives_facade))):
+            self.primitives_facade[i].copy_frame(source, target)
 
     def get_state(self, f):
         x = np.zeros((self.n_particles, self.dim), dtype=np.float64)
@@ -386,13 +382,13 @@ class MPMSimulator:
         C = np.zeros((self.n_particles, self.dim, self.dim), dtype=np.float64)
         self.readframe(f, x, v, F, C)
         out = [x, v, F, C]
-        for i in self.primitives:
+        for i in self.primitives_facade:
             out.append(i.get_state(f))
         return out
 
     def set_state(self, f, state):
         self.setframe(f, *state[:4])
-        for s, i in zip(state[4:], self.primitives):
+        for s, i in zip(state[4:], self.primitives_facade):
             i.set_state(f, s)
 
     @ti.kernel
@@ -460,15 +456,12 @@ class MPMSimulator:
         self.cur = start + self.substeps
 
         if action is not None:
-            self.fpc.set_action(start//self.substeps, self.substeps, 
-                action[:self.primitives.action_dim])
-            self.rc.set_action(start//self.substeps, self.substeps, 
-                action[self.primitives.action_dim:])
+            self.controllers_facade.set_action(start//self.substeps, self.substeps, action)
 
         for s in range(start, self.cur):
             self.substep(s)
-            self.collision_detector = PrimitiveCollisionManager(start//self.substeps, self.primitives)
-            self.check_robot_collision(collision_callback)
+            self.collision_detector = PrimitiveCollisionManager(start//self.substeps, self.primitives_facade)
+            self.collision_detector.check_robot_collision(collision_callback)
 
         if is_copy:
             # copy to the first frame for simulation
@@ -536,11 +529,11 @@ class MPMSimulator:
     @ti.kernel
     def set_input_primitives_grad(self,t: ti.i32,grad:ti.ext_arr()):
         base = self.obs_num * 6
-        for i in ti.static(range(len(self.primitives))):
+        for i in ti.static(range(len(self.primitives_facade))):
             for j in ti.static(range(3)):
-                self.primitives[i].position.grad[t*self.substeps][j] += grad[base+i*7+j]
+                self.primitives_facade[i].position.grad[t*self.substeps][j] += grad[base+i*7+j]
             for j in ti.static(range(4)):
-                self.primitives[i].rotation.grad[t*self.substeps][j] += grad[base+i*7+3+j]
+                self.primitives_facade[i].rotation.grad[t*self.substeps][j] += grad[base+i*7+3+j]
 
 
 

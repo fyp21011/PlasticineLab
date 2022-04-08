@@ -3,43 +3,34 @@ import cv2
 import taichi as ti
 import torch
 
-from plb.engine.robots import RobotsController
-from plb.engine.primitive import Primitives
+from .mpm_simulator import MPMSimulator
+from .renderer import Renderer
+from .shapes import Shapes
+from .losses import Loss
+from .nn.mlp import MLP
 
 # TODO: run on GPU, fast_math will cause error on float64's sqrt; removing it cuases compile error..
 ti.init(arch=ti.gpu, debug=False, fast_math=True)
 
-
-@ti.data_oriented
+#TODO: merge TaichiEnv with PlasticineEnv
 class TaichiEnv:
     def __init__(self, cfg, nn=False, loss=True):
         """
         A taichi env builds scene according the configuration and the set of manipulators
         """
-        # primitives are environment specific parameters ..
-        # move it inside can improve speed; don't know why..
-        from .mpm_simulator import MPMSimulator
-        from .renderer import Renderer
-        from .shapes import Shapes
-        from .losses import Loss
-        from .nn.mlp import MLP
-
-        self.cfg = cfg.ENV
-        self.primitives = Primitives(cfg.PRIMITIVES)
-        controller = RobotsController.parse_config(cfg.ROBOTS, self.primitives)
-        self.action_dims = self.primitives.action_dims.copy()
-        controller.export_action_dims(to = self.action_dims)
         self.shapes = Shapes(cfg.SHAPES)
         self.init_particles, self.particle_colors = self.shapes.get()
 
         cfg.SIMULATOR.defrost()
         self.n_particles = cfg.SIMULATOR.n_particles = len(self.init_particles)
 
-        self.simulator = MPMSimulator(cfg.SIMULATOR, self.primitives, controller)
-        self.renderer = Renderer(cfg.RENDERER, self.primitives)
+        self.simulator = MPMSimulator(cfg)
+
+        self.primitives_facade = self.simulator.primitives_facade
+        self.renderer = Renderer(cfg.RENDERER, self.primitives_facade)
 
         if nn:
-            self.nn = MLP(self.simulator, self.primitives, (256, 256))
+            self.nn = MLP(self.simulator, self.primitives_facade, (256, 256))
 
         if loss:
             self.loss = Loss(cfg.ENV.loss, self.simulator)
@@ -49,14 +40,14 @@ class TaichiEnv:
     
     @property
     def action_dim(self) -> int:
-        return self.action_dims[-1]
+        return self.simulator.controllers_facade.action_dim
 
     def set_copy(self, is_copy: bool):
         self._is_copy = is_copy
 
     def initialize(self):
         # initialize all taichi variable according to configurations..
-        self.primitives.initialize()
+        self.primitives_facade.initialize()
         self.simulator.initialize()
         self.renderer.initialize()
         if self.loss:
@@ -96,7 +87,7 @@ class TaichiEnv:
         x = self.simulator.get_x(t, needs_grad=False)
         v = self.simulator.get_v(t, needs_grad=False)
         outs = []
-        for i in self.primitives:
+        for i in self.primitives_facade: 
             outs.append(i.get_state(t, needs_grad=False))
         s = np.concatenate(outs)
         step_size = len(x) // n_observed_particles
@@ -119,14 +110,14 @@ class TaichiEnv:
         assert self.simulator.cur == 0
         return {
             'state': self.simulator.get_state(0),
-            'softness': self.primitives.get_softness(),
+            'softness': self.primitives_facade.get_softness(),
             'is_copy': self._is_copy
         }
 
     def set_state(self, state, softness, is_copy):
         self.simulator.cur = 0
         self.simulator.set_state(0, state)
-        self.primitives.set_softness(softness)
+        self.primitives_facade.set_softness(softness)
         self._is_copy = is_copy
         if self.loss:
             self.loss.reset()
@@ -137,6 +128,6 @@ class TaichiEnv:
     # obs will be an numpy array
     # obs will be the last step cur
     def act(self,obs):
-        action = np.zeros(self.simulator.primitives.action_dims[-1])
+        action = np.zeros(self.action_dim)
         self.simulator.act(obs,self.simulator.cur,action)
         return action

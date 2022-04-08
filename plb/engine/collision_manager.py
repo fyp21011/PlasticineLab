@@ -1,12 +1,11 @@
-from typing import Dict
-import numpy as np
 import fcl
-from plb.engine.primitive.primitives import Box, Sphere, Cylinder, Primitive
+from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive
 
 #TODO: reduce fcl objects regeneration?
 class PrimitiveCollisionManager:
     def __init__(self, frame, primitives) -> None:
-        if type(primitives) == dict:
+        self.geom_id_to_name_map = None
+        if type(primitives) == dict: # legacy impl after using PrimitivesFacade
             self.obj_names = list(primitives.keys())
 
             # list of (CollisionObject, CollisionGeometry) for the geometry-to-name mapping
