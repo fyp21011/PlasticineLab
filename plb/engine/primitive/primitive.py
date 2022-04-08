@@ -3,6 +3,9 @@ import numpy as np
 import taichi as ti
 from yacs.config import CfgNode as CN
 
+from plb.utils.vis_recorder import VisRecordable
+from protocol import AddRigidBodyPrimitiveMessage, DeformableMeshesMessage, UpdateRigidBodyPoseMessage
+
 from ...config.utils import make_cls_config
 from .utils import qrot, qmul, w2quat, inv_trans
 
@@ -17,7 +20,7 @@ def normalize(n):
 
 
 @ti.data_oriented
-class Primitive:
+class Primitive(VisRecordable):
     # single primitive ..
     state_dim = 7
 
@@ -64,6 +67,26 @@ class Primitive:
             self.min_dist = ti.field(dtype, shape=(), needs_grad=True)
             # record min distance to the point cloud..
             self.dist_norm = ti.field(dtype, shape=(), needs_grad=True)
+
+        self.register_scene_init_callback(self._init_object_in_visualizer)
+
+    def _init_object_in_visualizer(self):
+        """ Callback when the visualizer is turned on
+
+        Send a message to the visualizer to initialize the primitive
+        object in the scene. 
+
+        NOTE: desipte rigid-body primitives, the default representation
+        of their spacial shape is as well the SDF values. Hence, the
+        initialization borrows the factory method from the 
+        `DeformableMeshesMessage` to transfer SDF to meshes.
+        """
+        DeformableMeshesMessage.Factory(
+            self.unique_name,
+            0,
+            sdf = self.sdf(0, )
+        ).message.send()
+        # TODO: the default grid_ops
 
     @ti.func
     def _sdf(self, f, grid_pos):
@@ -137,8 +160,17 @@ class Primitive:
 
         return v_out
 
+    def forward_kinematics(self, f):
+        self.forward_kinematics_kernel(f)
+        if self.is_recording():
+            UpdateRigidBodyPoseMessage(
+                self.unique_name, 
+                self.y_up_2_z_up(self.get_state(f + 1, False)),
+                f * self.STEP_INTERVAL
+            ).send()
+
     @ti.kernel
-    def forward_kinematics(self, f: ti.i32):
+    def forward_kinematics_kernel(self, f: ti.i32):
         self.position[f+1] = max(min(self.position[f] +
                                  self.v[f], self.xyz_limit[1]), self.xyz_limit[0])
         # rotate in world coordinates about itself.
@@ -146,29 +178,36 @@ class Primitive:
                                   self.dtype), self.rotation[f])
 
     @ti.complex_kernel
-    def apply_robot_forward_kinemtaics(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
+    def apply_robot_forward_kinemtaics(self, frame_idx: ti.i32, xyz_quat: torch.Tensor):
         """ The robot's foward kinematics computes the target postion and
         rotation of each primitive geometry for each substep. The method
         applies this computation results to the primitive geometries.
 
         Parameters
         ----------
-        frameIdx: the time index
+        frame_idx: the time index
         xyz_quat: the position and global rotation the primitive geometry
             should be moved to
         """
         if xyz_quat.shape[-1] != 7:
             raise ValueError(f"XYZ expecting Tensor of shape (..., 7), got {xyz_quat.shape}")
         xyz_quat = xyz_quat.detach().cpu().numpy()
-        targetXYZ = xyz_quat[:3]
-        targetQuat = xyz_quat[3:]
+        targetXYZ = xyz_quat[[2, 0, 1]]
+        targetQuat = xyz_quat[[3, 6, 4, 5]]
 
-        self.position[frameIdx + 1] = np.clip(
+        self.position[frame_idx + 1] = np.clip(
             targetXYZ,
             self.xyz_limit[0].value,
             self.xyz_limit[1].value
         )
-        self.rotation[frameIdx + 1] = targetQuat
+        self.rotation[frame_idx + 1] = targetQuat
+
+        if self.is_recording():
+            UpdateRigidBodyPoseMessage(
+                self.unique_name, 
+                xyz_quat,
+                frame_idx * self.STEP_INTERVAL
+            ).send()
 
     @ti.complex_kernel_grad(apply_robot_forward_kinemtaics)
     def forward_kinematics_gradient_backward_2_robot(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
@@ -297,6 +336,7 @@ class Primitive:
     def default_config(cls):
         cfg = CN()
         cfg.shape = ''
+        cfg.name = '' # default name 
         cfg.init_pos = (0.3, 0.3, 0.3)  # default color
         cfg.init_rot = (1., 0., 0., 0.)  # default color
         cfg.color = (0.3, 0.3, 0.3)  # default color
@@ -309,6 +349,10 @@ class Primitive:
         action.dim = 0  # in this case it can't move ...
         action.scale = ()
         return cfg
+
+    @property
+    def unique_name(self) -> str:
+        return f"{self.cfg.shape}_{self.cfg.name if len(self.cfg.name) != 0 else abs(hash(self))}"
 
 
 class Sphere(Primitive):
@@ -330,6 +374,19 @@ class Sphere(Primitive):
         cfg.shape = 'Sphere'
         cfg.radius = 1.
         return cfg
+
+    def _init_object_in_visualizer(self):
+        AddRigidBodyPrimitiveMessage(
+            self.unique_name,
+            "bpy.ops.mesh.primitive_uv_sphere_add",
+            radius = self.radius
+        ).send()
+        UpdateRigidBodyPoseMessage(
+            self.unique_name,
+            self.y_up_2_z_up(self.get_state(0, False)),
+            0
+        ).send()
+
 
 class Capsule(Primitive):
     def __init__(self, **kwargs):
@@ -488,6 +545,20 @@ class Cylinder(Primitive):
         cfg.r = 0.1
         return cfg
 
+    def _init_object_in_visualizer(self):
+        AddRigidBodyPrimitiveMessage(
+            self.unique_name,
+            "bpy.ops.mesh.primitive_cylinder_add",
+            radius = self.r,
+            depth = self.h
+        ).send()
+        UpdateRigidBodyPoseMessage(
+            self.unique_name,
+            self.y_up_2_z_up(self.get_state(0, False)),
+            0
+        ).send()
+
+
 
 class Torus(Primitive):
     def __init__(self, **kwargs):
@@ -555,3 +626,15 @@ class Box(Primitive):
         cfg.size = (0.1, 0.1, 0.1)
         return cfg
 
+    def _init_object_in_visualizer(self):
+        AddRigidBodyPrimitiveMessage(
+            self.unique_name, 
+            "bpy.ops.mesh.primitive_cube_add",
+            size = 1.0,
+            scale = self.cfg.size
+        ).send()
+        UpdateRigidBodyPoseMessage(
+            self.unique_name, 
+            self.y_up_2_z_up(self.get_state(0, False)),
+            0
+        ).send()

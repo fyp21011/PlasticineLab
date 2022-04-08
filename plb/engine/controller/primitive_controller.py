@@ -1,6 +1,8 @@
-from .controller import Controller
-from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Capsule, Chopsticks, RollingPin, Torus
+from typing import List
+
+from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Capsule, Chopsticks, RollingPin, Torus, Primitive
 # DO NOT PRUNE THIS LINE, otherwise the `eval` fails
+from .controller import Controller
 
 import numpy as np
 import yaml
@@ -10,7 +12,7 @@ class PrimitivesController(Controller):
     def __init__(self, cfgs, max_timesteps=1024):
         super().__init__()
         outs = []
-        self.primitives = []
+        self.primitives: List[Primitive] = []
         for i in cfgs:
             if isinstance(i, CN):
                 cfg = i

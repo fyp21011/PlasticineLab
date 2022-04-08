@@ -461,12 +461,12 @@ class MPMSimulator(VisRecordable):
         for s in range(start, self.cur):
             self.substep(s)
         
-        if self.is_recording():
-            DeformableMeshesMessage.Factory(
-                "mpm",
-                self.current_frame_idx(),
-                pcd = self.get_x(self.cur + 1, needs_grad = False)
-            ).message.send()
+        # if self.is_recording():
+        #     DeformableMeshesMessage.Factory(
+        #         "mpm",
+        #         self.cur * self.STEP_INTERVAL,
+        #         pcd = self.y_up_2_z_up(self.get_x(self.cur, needs_grad = False))
+        #     ).message.send()
         
         if is_copy:
             # copy to the first frame for simulation
