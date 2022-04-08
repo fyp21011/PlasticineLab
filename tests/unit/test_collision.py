@@ -52,4 +52,4 @@ def test_robot_self_collsion():
     collided, contacts = collision_env.check_robot_collision()
     
     print(collided, contacts)
-    assert collided
+    assert not collided, f'Expected no contacts, but got {contacts}'
