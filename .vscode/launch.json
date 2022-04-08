@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: test vis recording",
+            "cwd": "${workspaceFolder}",
+            "type": "python",
+            "request": "launch",
+            "module": "tests.vis_recording",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "Python: test URDF",
             "cwd": "${workspaceFolder}",
             "type": "python",
