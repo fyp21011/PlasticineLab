@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 import taichi as ti
+from typing import List, Tuple
+from open3d import geometry
 from yacs.config import CfgNode as CN
 
 from plb.utils.vis_recorder import VisRecordable
@@ -159,15 +161,20 @@ class Primitive(VisRecordable):
             #print(input_v, collider_v_at_grid, normal_component, D)
 
         return v_out
+    
+    def _update_pose_in_vis_recorder(self, frame_idx, is_init = False):
+        state_idx = frame_idx + (0 if is_init else 1)
+        if is_init or self.is_recording():
+            UpdateRigidBodyPoseMessage(
+                self.unique_name, 
+                self.y_up_2_z_up(self.get_state(state_idx, False)),
+                frame_idx * self.STEP_INTERVAL
+            ).send()
+
 
     def forward_kinematics(self, f):
         self.forward_kinematics_kernel(f)
-        if self.is_recording():
-            UpdateRigidBodyPoseMessage(
-                self.unique_name, 
-                self.y_up_2_z_up(self.get_state(f + 1, False)),
-                f * self.STEP_INTERVAL
-            ).send()
+        self._update_pose_in_vis_recorder(f)
 
     @ti.kernel
     def forward_kinematics_kernel(self, f: ti.i32):
@@ -192,8 +199,8 @@ class Primitive(VisRecordable):
         if xyz_quat.shape[-1] != 7:
             raise ValueError(f"XYZ expecting Tensor of shape (..., 7), got {xyz_quat.shape}")
         xyz_quat = xyz_quat.detach().cpu().numpy()
-        targetXYZ = xyz_quat[[2, 0, 1]]
-        targetQuat = xyz_quat[[3, 6, 4, 5]]
+        targetXYZ = xyz_quat[:3]
+        targetQuat = xyz_quat[3:]
 
         self.position[frame_idx + 1] = np.clip(
             targetXYZ,
@@ -202,12 +209,7 @@ class Primitive(VisRecordable):
         )
         self.rotation[frame_idx + 1] = targetQuat
 
-        if self.is_recording():
-            UpdateRigidBodyPoseMessage(
-                self.unique_name, 
-                xyz_quat,
-                frame_idx * self.STEP_INTERVAL
-            ).send()
+        self._update_pose_in_vis_recorder(frame_idx)
 
     @ti.complex_kernel_grad(apply_robot_forward_kinemtaics)
     def forward_kinematics_gradient_backward_2_robot(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
@@ -381,11 +383,7 @@ class Sphere(Primitive):
             "bpy.ops.mesh.primitive_uv_sphere_add",
             radius = self.radius
         ).send()
-        UpdateRigidBodyPoseMessage(
-            self.unique_name,
-            self.y_up_2_z_up(self.get_state(0, False)),
-            0
-        ).send()
+        self._update_pose_in_vis_recorder(0, True)
 
 
 class Capsule(Primitive):
@@ -552,11 +550,27 @@ class Cylinder(Primitive):
             radius = self.r,
             depth = self.h
         ).send()
-        UpdateRigidBodyPoseMessage(
-            self.unique_name,
-            self.y_up_2_z_up(self.get_state(0, False)),
-            0
-        ).send()
+        self._update_pose_in_vis_recorder(0, True)
+    
+    def _switch_cylinder_origin(self, origin: np.ndarray, quat: np.ndarray) -> np.ndarray:
+        """ Switch the local cylinder origin from its
+        bottom surface center to its gravity center
+
+        The formula is: o' = o + R(h / 2)
+        where o is the cylinder center, R is the rotation
+        matrix, and the h is the vector [0, 0, h], i.e.
+        the axis of the cylinder
+        """
+        R = geometry.get_rotation_matrix_from_quaternion(quat)
+        h = np.array([0, 0, self.h / 2])
+        return origin + np.dot(R, h)
+
+    def _update_pose_in_vis_recorder(self, frame_idx, is_init=False):
+        state_idx = frame_idx + (0 if is_init else 1)
+        pose = self.y_up_2_z_up(self.get_state(state_idx, False))
+        pose[:3] = self._switch_cylinder_origin(pose[:3], pose[3:])
+        if is_init or self.is_recording():
+            UpdateRigidBodyPoseMessage(self.unique_name, pose, frame_idx * self.STEP_INTERVAL).send()
 
 
 
@@ -633,8 +647,4 @@ class Box(Primitive):
             size = 1.0,
             scale = self.cfg.size
         ).send()
-        UpdateRigidBodyPoseMessage(
-            self.unique_name, 
-            self.y_up_2_z_up(self.get_state(0, False)),
-            0
-        ).send()
+        self._update_pose_in_vis_recorder(0, True)

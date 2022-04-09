@@ -103,8 +103,8 @@ class VisRecordable:
         coors = np.squeeze(coors)
         if coors.shape[-1] == 7:
             coors = coors.reshape((-1, 7))
-            return np.reshape(coors[:, [1, 2, 0, 3, 5, 6, 4]], original_shape)
+            return np.reshape(coors[:, [2, 0, 1, 3, 6, 4, 5]], original_shape)
             # X, Y, Z, W, X_r, Y_r, Z_r -> Y, Z, X, W, Y_r, Z_r, X_r
         else:
             coors = np.reshape(coors, (-1, 3))
-            return np.reshape(coors[:, [1, 2, 0]], original_shape) # XYZ -> YZX
+            return np.reshape(coors[:, [2, 0, 1]], original_shape) # XYZ -> YZX

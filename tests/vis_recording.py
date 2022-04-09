@@ -28,16 +28,18 @@ from protocol import FinishAnimationMessage
 # print("last frame idx is ", last)
 # FinishAnimationMessage("unit_test_vis_recording", last).send()
 
+TIME = 0
+
 def done():
-    FinishAnimationMessage("unit_test_vis_recording", 15 * VisRecordable.STEP_INTERVAL).send()
+    FinishAnimationMessage("rope_robot_init", TIME * VisRecordable.STEP_INTERVAL).send()
     
 
 env = PlasticineEnv(cfg_path = 'rope_robot.yml', version = 1)
 assert env.action_space.shape == (12,)
 VisRecordable.register_scene_end_callback(done)
 VisRecordable.turn_on()
-for i in range(15):
-    env.step(np.random.rand(12, ) * 0.1)
-    sleep(0.1)
+# for i in range(15):
+#     env.step(np.random.rand(12, ) * 0.1)
+#     sleep(0.1)
 VisRecordable.turn_off()
 

@@ -1,9 +1,10 @@
 import os
-from typing import Any, List, Dict, Iterable, Union, Generator
+from typing import Any, List, Dict, Iterable, Tuple, Union, Generator
 import warnings
 import yaml
 
 import numpy as np
+from open3d import geometry
 import torch
 from yacs.config import CfgNode as CN
 
@@ -44,8 +45,8 @@ def _generate_primitive_config(rawPose: torch.Tensor, offset:Iterable[float], sh
         'action': actionCN, 
         'color':  ROBOT_COLLISION_COLOR, 
         # 'init_pos': f'({rawPose[0] + offset[0]}, {rawPose[1] + offset[1]}, {rawPose[2] + offset[2]})',
-        'init_pos': f'({rawPose[2]}, {rawPose[0]}, {rawPose[1]})',
-        'init_rot': f'({rawPose[3]}, {rawPose[6]}, {rawPose[4]}, {rawPose[5]})',
+        'init_pos': f'({rawPose[1]}, {rawPose[2]}, {rawPose[0]})',
+        'init_rot': f'({rawPose[3]}, {rawPose[5]}, {rawPose[6]}, {rawPose[4]})',
         'shape': shapeName
     }
     for key, value in kwargs.items():
@@ -312,21 +313,15 @@ class RobotsController(Controller, VisRecordable):
         for robot, primitive_dict in zip(self.robots, self.link_2_primitives):
             for name, link in robot._link_map.items():
                 if name not in primitive_dict: continue
-                primitive_dict[name].apply_robot_forward_kinemtaics(
-                    step_idx, 
-                    link.trajectory[step_idx]
-                )
+                pose = link.trajectory[step_idx]
+                primitive_dict[name].apply_robot_forward_kinemtaics(step_idx, pose[[1, 2, 0, 3, 5, 6, 4]])
 
                 if self.is_recording():
                     for vis_idx, vis in enumerate(link.visuals):
                         vis_name = f'{robot.name}_{robot_idx}/{name}_{vis_idx}'
                         if vis.geometry.mesh is not None:
                             vis_name = vis_name + '.' + os.path.splitext(vis.geometry.mesh.filename)[-1]
-                        UpdateRigidBodyPoseMessage(
-                            vis_name, 
-                            link.trajectory[step_idx].tolist(),
-                            step_idx * self.STEP_INTERVAL
-                        ).send()
+                        UpdateRigidBodyPoseMessage(vis_name, pose, step_idx * self.STEP_INTERVAL).send()
             robot_idx += 1
                     
 
