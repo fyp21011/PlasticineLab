@@ -38,8 +38,9 @@ env = PlasticineEnv(cfg_path = 'rope_robot.yml', version = 1)
 assert env.action_space.shape == (12,)
 VisRecordable.register_scene_end_callback(done)
 VisRecordable.turn_on()
-# for i in range(15):
-#     env.step(np.random.rand(12, ) * 0.1)
-#     sleep(0.1)
+env.step(np.zeros((12,)))
+for i in range(14):
+    env.step(np.random.rand(12, ) * 0.1)
+    sleep(0.1)
 VisRecordable.turn_off()
 

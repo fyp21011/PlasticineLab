@@ -3,9 +3,6 @@ import warnings
 
 import numpy as np
 
-
-
-
 class VisRecordable:
     """ An interface, marking a class is visually
     recordable and offer some utils method
@@ -23,7 +20,7 @@ class VisRecordable:
     _scene_end_callbacks: List[Callable] = []
     _on = False
 
-    STEP_INTERVAL = 24
+    STEP_INTERVAL = 2
 
     @classmethod
     def turn_on(cls):

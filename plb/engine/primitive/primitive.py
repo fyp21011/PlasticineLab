@@ -339,6 +339,7 @@ class Primitive(VisRecordable):
         cfg = CN()
         cfg.shape = ''
         cfg.name = '' # default name 
+        cfg.robot = '' # mark whether this belongs to some robot
         cfg.init_pos = (0.3, 0.3, 0.3)  # default color
         cfg.init_rot = (1., 0., 0., 0.)  # default color
         cfg.color = (0.3, 0.3, 0.3)  # default color
@@ -568,7 +569,8 @@ class Cylinder(Primitive):
     def _update_pose_in_vis_recorder(self, frame_idx, is_init=False):
         state_idx = frame_idx + (0 if is_init else 1)
         pose = self.y_up_2_z_up(self.get_state(state_idx, False))
-        pose[:3] = self._switch_cylinder_origin(pose[:3], pose[3:])
+        if len(self.cfg.robot) == 0:
+            pose[:3] = self._switch_cylinder_origin(pose[:3], pose[3:])
         if is_init or self.is_recording():
             UpdateRigidBodyPoseMessage(self.unique_name, pose, frame_idx * self.STEP_INTERVAL).send()
 

@@ -47,13 +47,13 @@ def _generate_primitive_config(rawPose: torch.Tensor, offset:Iterable[float], sh
         # 'init_pos': f'({rawPose[0] + offset[0]}, {rawPose[1] + offset[1]}, {rawPose[2] + offset[2]})',
         'init_pos': f'({rawPose[1]}, {rawPose[2]}, {rawPose[0]})',
         'init_rot': f'({rawPose[3]}, {rawPose[5]}, {rawPose[6]}, {rawPose[4]})',
-        'shape': shapeName
+        'shape': shapeName, 
+        'robot': 'URDF'
     }
     for key, value in kwargs.items():
         if isinstance(value, CN): configDict[key] = value
         else:                     configDict[key] = str(value)
     return CN(init_dict=configDict)
-
 
 class _RobotLinkVisualizer:
     def __init__(self, name: str, link_geometry: Geometry, init_pose: Union[np.ndarray, torch.Tensor]) -> None:
@@ -239,7 +239,7 @@ class RobotsController(Controller, VisRecordable):
                 linkPrimitive = self._urdf_collision_to_primitive(
                     link.collisions[0],
                     offset_,
-                    link.init_pose, 
+                    link.collision_pose(0, 0), 
                     name = f'{robot.name}_{robot_idx}/{linkName}_collision'
                 )
                 if linkPrimitive is not None:
@@ -313,15 +313,16 @@ class RobotsController(Controller, VisRecordable):
         for robot, primitive_dict in zip(self.robots, self.link_2_primitives):
             for name, link in robot._link_map.items():
                 if name not in primitive_dict: continue
-                pose = link.trajectory[step_idx]
+                pose = link.collision_pose(0, step_idx)
                 primitive_dict[name].apply_robot_forward_kinemtaics(step_idx, pose[[1, 2, 0, 3, 5, 6, 4]])
-
+                
                 if self.is_recording():
+                    pose = link.trajectory[step_idx]
                     for vis_idx, vis in enumerate(link.visuals):
                         vis_name = f'{robot.name}_{robot_idx}/{name}_{vis_idx}'
                         if vis.geometry.mesh is not None:
                             vis_name = vis_name + '.' + os.path.splitext(vis.geometry.mesh.filename)[-1]
-                        UpdateRigidBodyPoseMessage(vis_name, pose, step_idx * self.STEP_INTERVAL).send()
+                        UpdateRigidBodyPoseMessage(vis_name, pose.detach().cpu().numpy(), step_idx * self.STEP_INTERVAL).send()
             robot_idx += 1
                     
 
