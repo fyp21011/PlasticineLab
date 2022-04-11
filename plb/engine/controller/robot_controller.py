@@ -1,10 +1,9 @@
 import os
-from typing import Any, List, Dict, Iterable, Tuple, Union, Generator
+from typing import Any, List, Dict, Iterable, Union, Generator
 import warnings
 import yaml
 
 import numpy as np
-from open3d import geometry
 import torch
 from yacs.config import CfgNode as CN
 
@@ -12,48 +11,8 @@ from plb.config.utils import make_cls_config
 from plb.utils import VisRecordable
 from .controller import Controller
 from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE, Geometry
-from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive
+from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive, robot_collision_2_primitive
 from protocol import MeshesMessage, AddRigidBodyPrimitiveMessage, UpdateRigidBodyPoseMessage
-
-
-ROBOT_LINK_DOF = 7
-ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
-ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
-
-def _generate_primitive_config(rawPose: torch.Tensor, offset:Iterable[float], shapeName: str, **kwargs) -> CN:
-    """ Generate a CfgNode for primitive mapping
-
-    Based on the URDF's primtives, generate the configuration for PLB's
-    primitives, to establish the mapping in between
-
-    Params
-    ------
-    rawPose: a 7-dim tensor specifying the 
-    offset: the offset of the robot to which the primitve belongs
-    shapeName: 'Sphere', 'Cylinder' or 'Box'
-    **kwargs: other primitive-type specific parameters, such as
-        the `size` description for `Box`, `r` and `h` for cylinders
-    
-    Return
-    ------
-    A CfgNode for the PLB's primitive instantiation
-    """
-    if rawPose.shape != (7,):
-        raise ValueError(f"expecting a 7-dim Tensor as the initial position, got {rawPose}")
-    actionCN = CN(init_dict={'dim': ROBOT_LINK_DOF, 'scale': f'{ROBOT_LINK_DOF_SCALE}'})
-    configDict = {
-        'action': actionCN, 
-        'color':  ROBOT_COLLISION_COLOR, 
-        # 'init_pos': f'({rawPose[0] + offset[0]}, {rawPose[1] + offset[1]}, {rawPose[2] + offset[2]})',
-        'init_pos': f'({rawPose[1]}, {rawPose[2]}, {rawPose[0]})',
-        'init_rot': f'({rawPose[3]}, {rawPose[5]}, {rawPose[6]}, {rawPose[4]})',
-        'shape': shapeName, 
-        'robot': 'URDF'
-    }
-    for key, value in kwargs.items():
-        if isinstance(value, CN): configDict[key] = value
-        else:                     configDict[key] = str(value)
-    return CN(init_dict=configDict)
 
 class _RobotLinkVisualizer:
     def __init__(self, name: str, link_geometry: Geometry, init_pose: Union[np.ndarray, torch.Tensor]) -> None:
@@ -180,7 +139,7 @@ class RobotsController(Controller, VisRecordable):
             records the initial position of the geometry
         """
         if collision.geometry.box is not None:
-            linkPrimitive = Box(cfg = _generate_primitive_config(
+            linkPrimitive = Box(cfg = robot_collision_2_primitive(
                 rawPose   = pose, 
                 offset    = offset,
                 shapeName = 'Box',
@@ -188,7 +147,7 @@ class RobotsController(Controller, VisRecordable):
                 **kwargs
             ))
         elif collision.geometry.sphere is not None:
-            linkPrimitive = Sphere(cfg = _generate_primitive_config(
+            linkPrimitive = Sphere(cfg = robot_collision_2_primitive(
                 rawPose   = pose,
                 offset    = offset,
                 shapeName = 'Sphere',
@@ -196,7 +155,7 @@ class RobotsController(Controller, VisRecordable):
                 **kwargs
             ))
         elif collision.geometry.cylinder is not None:
-            linkPrimitive = Cylinder(cfg = _generate_primitive_config(
+            linkPrimitive = Cylinder(cfg = robot_collision_2_primitive(
                 rawPose   = pose,
                 offset    = offset,
                 shapeName = 'Cylinder',
@@ -314,7 +273,7 @@ class RobotsController(Controller, VisRecordable):
             for name, link in robot._link_map.items():
                 if name not in primitive_dict: continue
                 pose = link.collision_pose(0, step_idx)
-                primitive_dict[name].apply_robot_forward_kinemtaics(step_idx, pose[[1, 2, 0, 3, 5, 6, 4]])
+                primitive_dict[name].apply_robot_forward_kinemtaics(step_idx, pose)
                 
                 if self.is_recording():
                     pose = link.trajectory[step_idx]

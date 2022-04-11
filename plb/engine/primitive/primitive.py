@@ -1,8 +1,8 @@
+from typing import Iterable
 import torch
 import numpy as np
 import fcl
 import taichi as ti
-from typing import List, Tuple
 from open3d import geometry
 from yacs.config import CfgNode as CN
 
@@ -20,6 +20,81 @@ def length(x):
 @ti.func
 def normalize(n):
     return n/length(n)
+
+def _bottom_center_2_volume_center(pose: np.ndarray, h: float) -> np.ndarray:
+    """ Switch the local cylinder origin from its
+    bottom surface center to its gravity center
+
+    The formula is: o' = o + R(h / 2)
+    where o is the cylinder center, R is the rotation
+    matrix, and the h is the vector [0, 0, h], i.e.
+    the axis of the cylinder
+    """
+    R = geometry.get_rotation_matrix_from_quaternion(pose[3:])
+    h = np.array([0, 0, h / 2])
+    return pose[:3] + np.dot(R, h)
+
+def _volume_center_2_bottom_center(pose: np.ndarray, h: float) -> np.ndarray:
+    """ The reverse function of 
+    `self.bottom_center_2_volume_center`
+    """
+    R = geometry.get_rotation_matrix_from_quaternion(pose[3:])
+    h = np.array([0, 0, h / 2])
+    return pose[:3] - np.dot(R, h)
+
+def plb_pose_2_z_up_rhs(pose, is_cylinder = False, cylinder_h = 0):
+    z_up_pose = VisRecordable.y_up_2_z_up(pose)
+    if is_cylinder:
+        z_up_pose[:3] = _bottom_center_2_volume_center(z_up_pose, cylinder_h)
+    return z_up_pose
+
+def z_up_rhs_pose_2_plb(pose, is_cylinder = False, cylinder_h = 0):
+    if is_cylinder:
+        pose[:3] = _volume_center_2_bottom_center(pose, cylinder_h)
+    return pose[[1, 2, 0, 3, 5, 6, 4]]
+
+ROBOT_LINK_DOF = 7
+ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
+ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
+
+def robot_collision_2_primitive(rawPose: torch.Tensor, offset:Iterable[float], shapeName: str, **kwargs) -> CN:
+    """ Generate a CfgNode for primitive mapping
+
+    Based on the URDF's primtives, generate the configuration for PLB's
+    primitives, to establish the mapping in between
+
+    Params
+    ------
+    rawPose: a 7-dim tensor specifying the 
+    offset: the offset of the robot to which the primitve belongs
+    shapeName: 'Sphere', 'Cylinder' or 'Box'
+    **kwargs: other primitive-type specific parameters, such as
+        the `size` description for `Box`, `r` and `h` for cylinders
+    
+    Return
+    ------
+    A CfgNode for the PLB's primitive instantiation
+    """
+    if rawPose.shape != (7,):
+        raise ValueError(f"expecting a 7-dim Tensor as the initial position, got {rawPose}")
+    rawPose = z_up_rhs_pose_2_plb(
+        pose = rawPose.detach().cpu().numpy(),
+        is_cylinder = shapeName == "Cylinder",
+        cylinder_h = kwargs.get('h', 0)
+    )
+    actionCN = CN(init_dict={'dim': ROBOT_LINK_DOF, 'scale': f'{ROBOT_LINK_DOF_SCALE}'})
+    configDict = {
+        'action': actionCN, 
+        'color':  ROBOT_COLLISION_COLOR, 
+        # 'init_pos': f'({rawPose[0] + offset[0]}, {rawPose[1] + offset[1]}, {rawPose[2] + offset[2]})',
+        'init_pos': f'({rawPose[0]}, {rawPose[1]}, {rawPose[2]})',
+        'init_rot': f'({rawPose[3]}, {rawPose[4]}, {rawPose[5]}, {rawPose[6]})',
+        'shape': shapeName
+    }
+    for key, value in kwargs.items():
+        if isinstance(value, CN): configDict[key] = value
+        else:                     configDict[key] = str(value)
+    return CN(init_dict=configDict)
 
 
 @ti.data_oriented
@@ -168,7 +243,7 @@ class Primitive(VisRecordable):
         if is_init or self.is_recording():
             UpdateRigidBodyPoseMessage(
                 self.unique_name, 
-                self.y_up_2_z_up(self.get_state(state_idx, False)),
+                plb_pose_2_z_up_rhs(self.get_state(state_idx, False)),
                 frame_idx * self.STEP_INTERVAL
             ).send()
 
@@ -199,7 +274,11 @@ class Primitive(VisRecordable):
         """
         if xyz_quat.shape[-1] != 7:
             raise ValueError(f"XYZ expecting Tensor of shape (..., 7), got {xyz_quat.shape}")
-        xyz_quat = xyz_quat.detach().cpu().numpy()
+        xyz_quat = z_up_rhs_pose_2_plb(
+            pose = xyz_quat.detach().cpu().numpy(), 
+            is_cylinder = self.cfg.shape == "Cylinder",
+            cylinder_h = getattr(self, 'h') if hasattr(self, 'h') else 0
+        )
         targetXYZ = xyz_quat[:3]
         targetQuat = xyz_quat[3:]
 
@@ -219,6 +298,11 @@ class Primitive(VisRecordable):
             grads[i] = self.position.grad[frameIdx + 1][i]
         for i in range(4):
             grads[3 + i] = self.rotation.grad[frameIdx + 1][i]
+        grads = plb_pose_2_z_up_rhs(
+            pose = xyz_quat.detach().cpu().numpy(), 
+            is_cylinder = self.cfg.shape == "Cylinder",
+            cylinder_h = getattr(self, 'h') if hasattr(self, 'h') else 0
+        )
         xyz_quat.backward(grads, retain_graph=True)
 
 
@@ -349,7 +433,6 @@ class Primitive(VisRecordable):
         cfg = CN()
         cfg.shape = ''
         cfg.name = '' # default name 
-        cfg.robot = '' # mark whether this belongs to some robot
         cfg.init_pos = (0.3, 0.3, 0.3)  # default color
         cfg.init_rot = (1., 0., 0., 0.)  # default color
         cfg.color = (0.3, 0.3, 0.3)  # default color
@@ -575,25 +658,11 @@ class Cylinder(Primitive):
         ).send()
         self._update_pose_in_vis_recorder(0, True)
     
-    def _switch_cylinder_origin(self, origin: np.ndarray, quat: np.ndarray) -> np.ndarray:
-        """ Switch the local cylinder origin from its
-        bottom surface center to its gravity center
-
-        The formula is: o' = o + R(h / 2)
-        where o is the cylinder center, R is the rotation
-        matrix, and the h is the vector [0, 0, h], i.e.
-        the axis of the cylinder
-        """
-        R = geometry.get_rotation_matrix_from_quaternion(quat)
-        h = np.array([0, 0, self.h / 2])
-        return origin + np.dot(R, h)
 
     def _update_pose_in_vis_recorder(self, frame_idx, is_init=False):
-        state_idx = frame_idx + (0 if is_init else 1)
-        pose = self.y_up_2_z_up(self.get_state(state_idx, False))
-        if len(self.cfg.robot) == 0:
-            pose[:3] = self._switch_cylinder_origin(pose[:3], pose[3:])
         if is_init or self.is_recording():
+            state_idx = frame_idx + (0 if is_init else 1)
+            pose = plb_pose_2_z_up_rhs(self.get_state(state_idx, False), True, self.h)
             UpdateRigidBodyPoseMessage(self.unique_name, pose, frame_idx * self.STEP_INTERVAL).send()
 
 
