@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import fcl
 import taichi as ti
 from yacs.config import CfgNode as CN
 
@@ -186,6 +187,15 @@ class Primitive:
         self.position[target] = self.position[source]
         self.rotation[target] = self.rotation[source]
 
+    def _get_fcl_tf(self, f):
+        state = np.zeros((7), dtype=np.float64)
+        self.no_grad_get_state_kernel(f, state)
+        pos, rot = state[:3], state[3:]
+        return fcl.Transform(rot, pos)
+
+    def to_fcl_obj_and_geom(self): 
+        raise NotImplementedError
+
     @ti.kernel
     def get_state_kernel(self, f: ti.i32, controller: ti.ext_arr()):
         for j in ti.static(range(3)):
@@ -323,6 +333,12 @@ class Sphere(Primitive):
     @ti.func
     def normal(self, f, grid_pos):
         return normalize(grid_pos-self.position[f])
+    
+    def to_fcl_obj_and_geom(self, f):
+        geom = fcl.Sphere(self.radius)
+        tf = self._get_fcl_tf(f)
+        obj = fcl.CollisionObject(geom, tf)
+        return obj, geom
 
     @classmethod
     def default_config(cls):
@@ -479,6 +495,12 @@ class Cylinder(Primitive):
         p2 = p/l
         n3 = ti.Vector([p2[0] * n2_[0], n2_[1] * (ti.cast(grid_pos[1]>=0, self.dtype) * 2 - 1), p2[1] * n2_[0]])
         return normalize(n3)
+    
+    def to_fcl_obj_and_geom(self, f):
+        geom = fcl.Cylinder(self.r, self.h)
+        tf = self._get_fcl_tf(f)
+        obj = fcl.CollisionObject(geom, tf)
+        return obj, geom
 
     @classmethod
     def default_config(cls):
@@ -548,6 +570,13 @@ class Box(Primitive):
             dec[i] -= d
             n[i] = (0.5 / d) * (self._sdf(f, inc) - self._sdf(f, dec))
         return n / length(n)
+    
+    def to_fcl_obj_and_geom(self, f):
+        x, y, z = self.cfg.size
+        geom = fcl.Box(x, y, z)
+        tf = self._get_fcl_tf(f)
+        obj = fcl.CollisionObject(geom, tf)
+        return obj, geom
 
     @classmethod
     def default_config(cls):
