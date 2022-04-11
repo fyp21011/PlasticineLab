@@ -3,12 +3,14 @@ import taichi as ti
 import torch
 import torch.nn as nn
 
+from plb.engine.collision_manager import PrimitiveCollisionManager
 from plb.engine.primitives_facade import PrimitivesFacade
 from plb.engine.controller_facade import ControllersFacade
 from plb.engine.controller.primitive_controller import PrimitivesController
 from plb.engine.controller.robot_controller import RobotsController
 from plb.utils import VisRecordable
 from protocol import DeformableMeshesMessage
+
 
 @ti.data_oriented
 class MPMSimulator(VisRecordable):
@@ -451,7 +453,7 @@ class MPMSimulator(VisRecordable):
             self.no_grad_get_v_kernel(f, v)
         return v
 
-    def step(self, is_copy, action=None):
+    def step(self, is_copy, action=None, collision_callback=None):
         start = 0 if is_copy else self.cur
         self.cur = start + self.substeps
 
@@ -460,14 +462,17 @@ class MPMSimulator(VisRecordable):
 
         for s in range(start, self.cur):
             self.substep(s)
+            self.collision_detector = PrimitiveCollisionManager(start//self.substeps, self.primitives_facade)
+            self.collision_detector.check_robot_collision(collision_callback)
         
-        # if self.is_recording():
-        #     DeformableMeshesMessage.Factory(
-        #         "mpm",
-        #         self.cur * self.STEP_INTERVAL,
-        #         pcd = self.y_up_2_z_up(self.get_x(self.cur, needs_grad = False))
-        #     ).message.send()
+        if self.is_recording():
+            DeformableMeshesMessage.Factory(
+                "mpm",
+                self.cur * self.STEP_INTERVAL,
+                pcd = self.y_up_2_z_up(self.get_x(self.cur, needs_grad = False))
+            ).message.send()
         
+
         if is_copy:
             # copy to the first frame for simulation
             self.copyframe(self.cur, 0)
