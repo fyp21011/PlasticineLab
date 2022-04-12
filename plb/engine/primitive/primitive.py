@@ -313,8 +313,8 @@ class Primitive(VisRecordable):
         self.rotation[target] = self.rotation[source]
 
     def _get_fcl_tf(self, f):
-        state = np.zeros((7), dtype=np.float64)
-        self.no_grad_get_state_kernel(f, state)
+        state = self.get_state(f, False)
+        state = plb_pose_2_z_up_rhs(state)
         pos, rot = state[:3], state[3:]
         return fcl.Transform(rot, pos)
 
@@ -657,6 +657,12 @@ class Cylinder(Primitive):
             depth = self.h
         ).send()
         self._update_pose_in_vis_recorder(0, True)
+
+    def _get_fcl_tf(self, f):
+        state = self.get_state(f, False)
+        state = plb_pose_2_z_up_rhs(state, True, self.h)
+        pos, rot = state[:3], state[3:]
+        return fcl.Transform(rot, pos)
     
 
     def _update_pose_in_vis_recorder(self, frame_idx, is_init=False):
