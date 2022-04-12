@@ -79,8 +79,10 @@ def test_robot_self_collsion():
     rc.append_robot(robot)
     collision_primitives = rc.link_2_primitives[0]
 
+    for p in collision_primitives.values():
+        p.initialize()
+
     collision_env = PrimitiveCollisionManager(0, collision_primitives)
-    # TODO: how is robot primitives initiailzed?
     collided, contacts = collision_env.check_robot_collision()
     
     print(collided, contacts)
