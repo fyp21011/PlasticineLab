@@ -245,12 +245,12 @@
     <origin rpy="0.0 0.0 1.57079632679" xyz="0.0 0.0823 0.0"/>
   </joint>
   <link name="ee_link">
-    <!-- <collision>
+    <collision>
       <geometry>
         <box size="0.01 0.01 0.01"/>
       </geometry>
-      <origin rpy="0 0 0" xyz="-0.01 0 0"/>
-    </collision> -->
+      <origin rpy="0 0 0" xyz="0.01 0 0"/>
+    </collision>
   </link>
   <transmission name="shoulder_pan_trans">
     <type>transmission_interface/SimpleTransmission</type>
