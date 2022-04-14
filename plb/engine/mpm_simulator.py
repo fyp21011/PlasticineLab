@@ -8,12 +8,10 @@ from plb.engine.primitives_facade import PrimitivesFacade
 from plb.engine.controller_facade import ControllersFacade
 from plb.engine.controller.primitive_controller import PrimitivesController
 from plb.engine.controller.robot_controller import RobotsController
-from plb.utils import VisRecordable
-from protocol import DeformableMeshesMessage
 
 
 @ti.data_oriented
-class MPMSimulator(VisRecordable):
+class MPMSimulator:
     def __init__(self, cfg):
         self.cfg = cfg.SIMULATOR
         dim = self.dim = self.cfg.dim
@@ -464,14 +462,6 @@ class MPMSimulator(VisRecordable):
             self.substep(s)
             self.collision_detector = PrimitiveCollisionManager(start//self.substeps, self.primitives_facade)
             self.collision_detector.check_robot_collision(collision_callback)
-        
-        if self.is_recording():
-            DeformableMeshesMessage.Factory(
-                "mpm",
-                self.cur * self.STEP_INTERVAL,
-                pcd = self.y_up_2_z_up(self.get_x(self.cur, needs_grad = False))
-            ).message.send()
-        
 
         if is_copy:
             # copy to the first frame for simulation

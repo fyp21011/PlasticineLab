@@ -105,3 +105,7 @@ class VisRecordable:
         else:
             coors = np.reshape(coors, (-1, 3))
             return np.reshape(coors[:, [2, 0, 1]], original_shape) # XYZ -> YZX
+
+    @classmethod
+    def plb_sdf_2_z_up_rhs(cls, sdf: np.ndarray) -> np.ndarray:
+        return sdf.transpose(2, 0, 1)

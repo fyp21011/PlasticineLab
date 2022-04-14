@@ -3,6 +3,8 @@ import cv2
 import taichi as ti
 import torch
 
+from plb.utils import VisRecordable
+from protocol.message import DeformableMeshesMessage
 from .mpm_simulator import MPMSimulator
 from .renderer import Renderer
 from .shapes import Shapes
@@ -13,7 +15,7 @@ from .nn.mlp import MLP
 ti.init(arch=ti.gpu, debug=False, fast_math=True)
 
 #TODO: merge TaichiEnv with PlasticineEnv
-class TaichiEnv:
+class TaichiEnv(VisRecordable):
     def __init__(self, cfg, nn=False, loss=True):
         """
         A taichi env builds scene according the configuration and the set of manipulators
@@ -97,6 +99,13 @@ class TaichiEnv:
         if isinstance(action, torch.Tensor):
             action = action.detach()
         self.simulator.step(is_copy=self._is_copy, action=action)
+        if self.is_recording:
+            start = 0 if self.simulator.is_copy else self.simulator.cur
+            frame_idx = start + self.simulator.substeps
+            x = self.simulator.get_x(0)
+            self.renderer.set_particles(x, self.particle_colors)
+            sdf_ = self.renderer.get_sdf()
+            DeformableMeshesMessage.Factory("plasticine", frame_idx, sdf = self.plb_sdf_2_z_up_rhs(sdf_))
 
     def compute_loss(self):
         assert self.loss is not None

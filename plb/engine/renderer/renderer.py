@@ -130,6 +130,20 @@ class Renderer:
             self.smooth(self.sdf, self.sdf_copy, self.voxel_res)
             self.smooth(self.sdf_copy, self.sdf, self.voxel_res)
 
+    def get_sdf(self) -> np.ndarray:
+        out = np.zeros(self.sdf.shape, dtype=np.float64)
+        self.get_sdf_no_grad(out)
+        return out
+
+    @ti.complex_kernel
+    def get_sdf_no_grad(self, out: ti.ext_arr):
+        for I in ti.grouped(self.sdf):
+            out[I] = self.sdf[I]
+
+    @ti.complex_kernel_grad(get_sdf_no_grad)
+    def get_sdf_no_grad_backward(self, _: ti.ext_arr):
+        return
+            
 
     #-----------------------------------------------------
     # sample textures

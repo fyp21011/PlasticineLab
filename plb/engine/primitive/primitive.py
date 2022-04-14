@@ -159,12 +159,15 @@ class Primitive(VisRecordable):
         initialization borrows the factory method from the 
         `DeformableMeshesMessage` to transfer SDF to meshes.
         """
+        sdf_ = np.zeros((256, 256, 256))
+        self.get_global_sdf_kernel(0, sdf_)
+        sdf_ = self.plb_sdf_2_z_up_rhs(sdf_)
         DeformableMeshesMessage.Factory(
             self.unique_name,
             0,
-            sdf = self.sdf(0, )
+            sdf = sdf_, 
+            scale = (256, 256, 256) 
         ).message.send()
-        # TODO: the default grid_ops
 
     @ti.func
     def _sdf(self, f, grid_pos):
@@ -178,6 +181,16 @@ class Primitive(VisRecordable):
     def sdf(self, f, grid_pos):
         grid_pos = inv_trans(grid_pos, self.position[f], self.rotation[f])
         return self._sdf(f, grid_pos)
+
+    @ti.kernel
+    def get_global_sdf_kernel(self, f: ti.i32, out: ti.ext_arr()):
+        for I in ti.grouped(ti.ndrange(256, 256, 256)):
+            I_scaled = I / 256
+            out[I] = self.sdf(f, I_scaled)
+
+    # @ti.complex_kernel_grad(get_global_sdf_kernel)
+    # def get_global_sdf_kernel_grad(self, f: ti.i32, out: ti.ext_arr()):
+    #     return
 
     @ti.func
     def normal2(self, f, p):
