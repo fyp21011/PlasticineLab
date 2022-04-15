@@ -57,7 +57,7 @@ ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
 ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
 
-def primitive_cfg_in_mem(rawPose: torch.Tensor, offset:Iterable[float], shapeName: str, **kwargs) -> CN:
+def primitive_cfg_in_mem(rawPose: torch.Tensor, shapeName: str, **kwargs) -> CN:
     """ Generate a CfgNode for primitive in memory 
     instead of loading from `yml` files
 
@@ -87,7 +87,6 @@ def primitive_cfg_in_mem(rawPose: torch.Tensor, offset:Iterable[float], shapeNam
     configDict = {
         'action': actionCN, 
         'color':  ROBOT_COLLISION_COLOR, 
-        # 'init_pos': f'({rawPose[0] + offset[0]}, {rawPose[1] + offset[1]}, {rawPose[2] + offset[2]})',
         'init_pos': f'({rawPose[0]}, {rawPose[1]}, {rawPose[2]})',
         'init_rot': f'({rawPose[3]}, {rawPose[4]}, {rawPose[5]}, {rawPose[6]})',
         'shape': shapeName

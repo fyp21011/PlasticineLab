@@ -28,7 +28,7 @@ from protocol import FinishAnimationMessage
 # print("last frame idx is ", last)
 # FinishAnimationMessage("unit_test_vis_recording", last).send()
 
-TIME = 0
+TIME = 15
 
 def done():
     FinishAnimationMessage("rope_robot_w_clay", TIME * VisRecordable.STEP_INTERVAL).send()
@@ -40,9 +40,9 @@ VisRecordable.register_scene_end_callback(done)
 VisRecordable.turn_on()
 env.step(np.zeros((12,)))
 print("ZERO FRAME DONE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-# for i in range(14):
-#     env.step(np.random.rand(12, ) * 0.1)
-#     print(f"No. {i + 1} FRAME DONE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-#     sleep(0.1)
+for i in range(14):
+    env.step(np.random.rand(12, ))
+    print(f"No. {i + 1} FRAME DONE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    sleep(0.1)
 VisRecordable.turn_off()
 

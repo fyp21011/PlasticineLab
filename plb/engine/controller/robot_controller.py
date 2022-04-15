@@ -116,7 +116,7 @@ class RobotsController(Controller, VisRecordable):
         rc = RobotsController()
         for eachOutCfg in outs:
             diffRobot = DiffRobot.load(eachOutCfg.path)
-            rc.append_robot(diffRobot, eachOutCfg.offset)
+            rc.append_robot(diffRobot)
         return rc
 
     @classmethod
@@ -124,24 +124,21 @@ class RobotsController(Controller, VisRecordable):
         cfg = CN()
         cfg.shape = 'Robot'
         cfg.path = ''
-        cfg.offset = (0.0, 0.0, 0.0)
         return cfg
 
     @classmethod
-    def _urdf_collision_to_primitive(cls, collision: Collision, offset: np.ndarray, pose: torch.Tensor, **kwargs) -> Union[Primitive, None]:
+    def _urdf_collision_to_primitive(cls, collision: Collision, pose: torch.Tensor, **kwargs) -> Union[Primitive, None]:
         """ Converting the URDF's collision geometry to primitive
 
         Params
         ------
         collision: the URDF robot's collision geometry
-        offset: the offset of the robot's position
         pose: the pose matrix (4 * 4) of this geometry, which
             records the initial position of the geometry
         """
         if collision.geometry.box is not None:
             linkPrimitive = Box(cfg = primitive_cfg_in_mem(
                 rawPose   = pose, 
-                offset    = offset,
                 shapeName = 'Box',
                 size      = tuple(collision.geometry.box.size),
                 **kwargs
@@ -149,7 +146,6 @@ class RobotsController(Controller, VisRecordable):
         elif collision.geometry.sphere is not None:
             linkPrimitive = Sphere(cfg = primitive_cfg_in_mem(
                 rawPose   = pose,
-                offset    = offset,
                 shapeName = 'Sphere',
                 radius    = collision.geometry.sphere.radius,
                 **kwargs
@@ -157,7 +153,6 @@ class RobotsController(Controller, VisRecordable):
         elif collision.geometry.cylinder is not None:
             linkPrimitive = Cylinder(cfg = primitive_cfg_in_mem(
                 rawPose   = pose,
-                offset    = offset,
                 shapeName = 'Cylinder',
                 r         = collision.geometry.cylinder.radius,
                 h         = collision.geometry.cylinder.length,
@@ -168,14 +163,12 @@ class RobotsController(Controller, VisRecordable):
             linkPrimitive = None
         return linkPrimitive
 
-    def append_robot(self, robot: DiffRobot, offset_: Iterable[float] = (0., 0., 0.)) -> Generator[Primitive, None, None]:
+    def append_robot(self, robot: DiffRobot) -> Generator[Primitive, None, None]:
         """ Append a new URDF-loaded robot to the controller
 
         Params
         ------
         robot: the newly loaded robot
-        offset: the offset of the robot's position, which will be added
-            to each link of this robot's Cartesian primitives
 
         Returns
         -----
@@ -197,7 +190,6 @@ class RobotsController(Controller, VisRecordable):
                 # converting
                 linkPrimitive = self._urdf_collision_to_primitive(
                     link.collisions[0],
-                    offset_,
                     link.collision_pose(0, 0), 
                     name = f'{robot.name}_{robot_idx}/{linkName}_collision'
                 )
