@@ -57,8 +57,9 @@ ROBOT_LINK_DOF = 7
 ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
 ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
 
-def robot_collision_2_primitive(rawPose: torch.Tensor, offset:Iterable[float], shapeName: str, **kwargs) -> CN:
-    """ Generate a CfgNode for primitive mapping
+def primitive_cfg_in_mem(rawPose: torch.Tensor, offset:Iterable[float], shapeName: str, **kwargs) -> CN:
+    """ Generate a CfgNode for primitive in memory 
+    instead of loading from `yml` files
 
     Based on the URDF's primtives, generate the configuration for PLB's
     primitives, to establish the mapping in between

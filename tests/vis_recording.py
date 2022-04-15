@@ -31,16 +31,18 @@ from protocol import FinishAnimationMessage
 TIME = 0
 
 def done():
-    FinishAnimationMessage("rope_robot_init", TIME * VisRecordable.STEP_INTERVAL).send()
+    FinishAnimationMessage("rope_robot_w_clay", TIME * VisRecordable.STEP_INTERVAL).send()
     
 
 env = PlasticineEnv(cfg_path = 'rope_robot.yml', version = 1)
 assert env.action_space.shape == (12,)
 VisRecordable.register_scene_end_callback(done)
 VisRecordable.turn_on()
-# env.step(np.zeros((12,)))
+env.step(np.zeros((12,)))
+print("ZERO FRAME DONE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 # for i in range(14):
 #     env.step(np.random.rand(12, ) * 0.1)
+#     print(f"No. {i + 1} FRAME DONE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 #     sleep(0.1)
 VisRecordable.turn_off()
 

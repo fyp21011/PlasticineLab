@@ -34,7 +34,7 @@ ENV:
     target_path: envs/data/Rope3D-v1.npy
 ROBOTS:
   - path: tests/data/ur5/ur5_primitive.urdf
-    offset: (0.01, -0.1, 0.0)
+    offset: (-0.1, 0.0, 0.0)
 RENDERER:
   camera_pos: (0.5, 2.5, 2.)
   camera_rot: (1.0, 0.)

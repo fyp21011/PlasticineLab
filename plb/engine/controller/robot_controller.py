@@ -11,7 +11,7 @@ from plb.config.utils import make_cls_config
 from plb.utils import VisRecordable
 from .controller import Controller
 from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE, Geometry
-from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive, robot_collision_2_primitive
+from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive, primitive_cfg_in_mem
 from protocol import MeshesMessage, AddRigidBodyPrimitiveMessage, UpdateRigidBodyPoseMessage
 
 class _RobotLinkVisualizer:
@@ -139,7 +139,7 @@ class RobotsController(Controller, VisRecordable):
             records the initial position of the geometry
         """
         if collision.geometry.box is not None:
-            linkPrimitive = Box(cfg = robot_collision_2_primitive(
+            linkPrimitive = Box(cfg = primitive_cfg_in_mem(
                 rawPose   = pose, 
                 offset    = offset,
                 shapeName = 'Box',
@@ -147,7 +147,7 @@ class RobotsController(Controller, VisRecordable):
                 **kwargs
             ))
         elif collision.geometry.sphere is not None:
-            linkPrimitive = Sphere(cfg = robot_collision_2_primitive(
+            linkPrimitive = Sphere(cfg = primitive_cfg_in_mem(
                 rawPose   = pose,
                 offset    = offset,
                 shapeName = 'Sphere',
@@ -155,7 +155,7 @@ class RobotsController(Controller, VisRecordable):
                 **kwargs
             ))
         elif collision.geometry.cylinder is not None:
-            linkPrimitive = Cylinder(cfg = robot_collision_2_primitive(
+            linkPrimitive = Cylinder(cfg = primitive_cfg_in_mem(
                 rawPose   = pose,
                 offset    = offset,
                 shapeName = 'Cylinder',
@@ -168,7 +168,7 @@ class RobotsController(Controller, VisRecordable):
             linkPrimitive = None
         return linkPrimitive
 
-    def append_robot(self, robot: DiffRobot, offset_: Iterable[float] = torch.zeros(3)) -> Generator[Primitive, None, None]:
+    def append_robot(self, robot: DiffRobot, offset_: Iterable[float] = (0., 0., 0.)) -> Generator[Primitive, None, None]:
         """ Append a new URDF-loaded robot to the controller
 
         Params

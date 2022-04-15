@@ -39,6 +39,7 @@ class TaichiEnv(VisRecordable):
         else:
             self.loss = None
         self._is_copy = True
+        self.step_cnt = 0
     
     @property
     def action_dim(self) -> int:
@@ -61,6 +62,7 @@ class TaichiEnv(VisRecordable):
         self.simulator.reset(self.init_particles)
         if self.loss:
             self.loss.clear()
+        self.step_cnt = 0
 
     def render(self, mode='human', **kwargs):
         assert self._is_copy, "The environment must be in the copy mode for render ..."
@@ -100,12 +102,13 @@ class TaichiEnv(VisRecordable):
             action = action.detach()
         self.simulator.step(is_copy=self._is_copy, action=action)
         if self.is_recording:
-            start = 0 if self.simulator.is_copy else self.simulator.cur
-            frame_idx = start + self.simulator.substeps
-            x = self.simulator.get_x(0)
-            self.renderer.set_particles(x, self.particle_colors)
-            sdf_ = self.renderer.get_sdf()
-            DeformableMeshesMessage.Factory("plasticine", frame_idx, sdf = self.plb_sdf_2_z_up_rhs(sdf_))
+            x = self.simulator.get_x(0, False)
+            DeformableMeshesMessage.Factory(
+                "plasticine",
+                self.step_cnt * self.STEP_INTERVAL * self.simulator.substeps,
+                pcd = self.y_up_2_z_up(x)
+            ).message.send()
+        self.step_cnt += 1
 
     def compute_loss(self):
         assert self.loss is not None
