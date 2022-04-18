@@ -129,7 +129,7 @@ class Renderer:
         for _ in ti.static(range(1)):
             self.smooth(self.sdf, self.sdf_copy, self.voxel_res)
             self.smooth(self.sdf_copy, self.sdf, self.voxel_res)
-
+            
 
     #-----------------------------------------------------
     # sample textures

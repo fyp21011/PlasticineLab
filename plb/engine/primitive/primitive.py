@@ -1,8 +1,13 @@
+from typing import Iterable
 import torch
 import numpy as np
 import fcl
 import taichi as ti
+from open3d import geometry
 from yacs.config import CfgNode as CN
+
+from plb.utils.vis_recorder import VisRecordable
+from protocol import AddRigidBodyPrimitiveMessage, DeformableMeshesMessage, UpdateRigidBodyPoseMessage
 
 from ...config.utils import make_cls_config
 from .utils import qrot, qmul, w2quat, inv_trans
@@ -16,9 +21,84 @@ def length(x):
 def normalize(n):
     return n/length(n)
 
+def _bottom_center_2_volume_center(pose: np.ndarray, h: float) -> np.ndarray:
+    """ Switch the local cylinder origin from its
+    bottom surface center to its gravity center
+
+    The formula is: o' = o + R(h / 2)
+    where o is the cylinder center, R is the rotation
+    matrix, and the h is the vector [0, 0, h], i.e.
+    the axis of the cylinder
+    """
+    R = geometry.get_rotation_matrix_from_quaternion(pose[3:])
+    h = np.array([0, 0, h / 2])
+    return pose[:3] + np.dot(R, h)
+
+def _volume_center_2_bottom_center(pose: np.ndarray, h: float) -> np.ndarray:
+    """ The reverse function of 
+    `self.bottom_center_2_volume_center`
+    """
+    R = geometry.get_rotation_matrix_from_quaternion(pose[3:])
+    h = np.array([0, 0, h / 2])
+    return pose[:3] - np.dot(R, h)
+
+def plb_pose_2_z_up_rhs(pose, is_cylinder = False, cylinder_h = 0):
+    z_up_pose = VisRecordable.y_up_2_z_up(pose)
+    if is_cylinder:
+        z_up_pose[:3] = _bottom_center_2_volume_center(z_up_pose, cylinder_h)
+    return z_up_pose
+
+def z_up_rhs_pose_2_plb(pose, is_cylinder = False, cylinder_h = 0):
+    if is_cylinder:
+        pose[:3] = _volume_center_2_bottom_center(pose, cylinder_h)
+    return pose[[1, 2, 0, 3, 5, 6, 4]]
+
+ROBOT_LINK_DOF = 7
+ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
+ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
+
+def primitive_cfg_in_mem(rawPose: torch.Tensor, shapeName: str, **kwargs) -> CN:
+    """ Generate a CfgNode for primitive in memory 
+    instead of loading from `yml` files
+
+    Based on the URDF's primtives, generate the configuration for PLB's
+    primitives, to establish the mapping in between
+
+    Params
+    ------
+    rawPose: a 7-dim tensor specifying the 
+    offset: the offset of the robot to which the primitve belongs
+    shapeName: 'Sphere', 'Cylinder' or 'Box'
+    **kwargs: other primitive-type specific parameters, such as
+        the `size` description for `Box`, `r` and `h` for cylinders
+    
+    Return
+    ------
+    A CfgNode for the PLB's primitive instantiation
+    """
+    if rawPose.shape != (7,):
+        raise ValueError(f"expecting a 7-dim Tensor as the initial position, got {rawPose}")
+    rawPose = z_up_rhs_pose_2_plb(
+        pose = rawPose.detach().cpu().numpy(),
+        is_cylinder = shapeName == "Cylinder",
+        cylinder_h = kwargs.get('h', 0)
+    )
+    actionCN = CN(init_dict={'dim': ROBOT_LINK_DOF, 'scale': f'{ROBOT_LINK_DOF_SCALE}'})
+    configDict = {
+        'action': actionCN, 
+        'color':  ROBOT_COLLISION_COLOR, 
+        'init_pos': f'({rawPose[0]}, {rawPose[1]}, {rawPose[2]})',
+        'init_rot': f'({rawPose[3]}, {rawPose[4]}, {rawPose[5]}, {rawPose[6]})',
+        'shape': shapeName
+    }
+    for key, value in kwargs.items():
+        if isinstance(value, CN): configDict[key] = value
+        else:                     configDict[key] = str(value)
+    return CN(init_dict=configDict)
+
 
 @ti.data_oriented
-class Primitive:
+class Primitive(VisRecordable):
     # single primitive ..
     state_dim = 7
 
@@ -66,6 +146,29 @@ class Primitive:
             # record min distance to the point cloud..
             self.dist_norm = ti.field(dtype, shape=(), needs_grad=True)
 
+        self.register_scene_init_callback(self._init_object_in_visualizer)
+
+    def _init_object_in_visualizer(self):
+        """ Callback when the visualizer is turned on
+
+        Send a message to the visualizer to initialize the primitive
+        object in the scene. 
+
+        NOTE: desipte rigid-body primitives, the default representation
+        of their spacial shape is as well the SDF values. Hence, the
+        initialization borrows the factory method from the 
+        `DeformableMeshesMessage` to transfer SDF to meshes.
+        """
+        sdf_ = np.zeros((256, 256, 256))
+        self.get_global_sdf_kernel(0, sdf_)
+        sdf_ = self.plb_sdf_2_z_up_rhs(sdf_)
+        DeformableMeshesMessage.Factory(
+            self.unique_name,
+            0,
+            sdf = sdf_, 
+            scale = (256, 256, 256) 
+        ).message.send()
+
     @ti.func
     def _sdf(self, f, grid_pos):
         raise NotImplementedError
@@ -78,6 +181,16 @@ class Primitive:
     def sdf(self, f, grid_pos):
         grid_pos = inv_trans(grid_pos, self.position[f], self.rotation[f])
         return self._sdf(f, grid_pos)
+
+    @ti.kernel
+    def get_global_sdf_kernel(self, f: ti.i32, out: ti.ext_arr()):
+        for I in ti.grouped(ti.ndrange(256, 256, 256)):
+            I_scaled = I / 256
+            out[I] = self.sdf(f, I_scaled)
+
+    # @ti.complex_kernel_grad(get_global_sdf_kernel)
+    # def get_global_sdf_kernel_grad(self, f: ti.i32, out: ti.ext_arr()):
+    #     return
 
     @ti.func
     def normal2(self, f, p):
@@ -137,9 +250,23 @@ class Primitive:
             #print(input_v, collider_v_at_grid, normal_component, D)
 
         return v_out
+    
+    def _update_pose_in_vis_recorder(self, frame_idx, is_init = False):
+        state_idx = frame_idx + (0 if is_init else 1)
+        if is_init or self.is_recording():
+            UpdateRigidBodyPoseMessage(
+                self.unique_name, 
+                plb_pose_2_z_up_rhs(self.get_state(state_idx, False)),
+                frame_idx * self.STEP_INTERVAL
+            ).send()
+
+
+    def forward_kinematics(self, f):
+        self.forward_kinematics_kernel(f)
+        self._update_pose_in_vis_recorder(f)
 
     @ti.kernel
-    def forward_kinematics(self, f: ti.i32):
+    def forward_kinematics_kernel(self, f: ti.i32):
         self.position[f+1] = max(min(self.position[f] +
                                  self.v[f], self.xyz_limit[1]), self.xyz_limit[0])
         # rotate in world coordinates about itself.
@@ -147,29 +274,35 @@ class Primitive:
                                   self.dtype), self.rotation[f])
 
     @ti.complex_kernel
-    def apply_robot_forward_kinemtaics(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
+    def apply_robot_forward_kinemtaics(self, frame_idx: ti.i32, xyz_quat: torch.Tensor):
         """ The robot's foward kinematics computes the target postion and
         rotation of each primitive geometry for each substep. The method
         applies this computation results to the primitive geometries.
 
         Parameters
         ----------
-        frameIdx: the time index
+        frame_idx: the time index
         xyz_quat: the position and global rotation the primitive geometry
             should be moved to
         """
         if xyz_quat.shape[-1] != 7:
             raise ValueError(f"XYZ expecting Tensor of shape (..., 7), got {xyz_quat.shape}")
-        xyz_quat = xyz_quat.detach().cpu().numpy()
+        xyz_quat = z_up_rhs_pose_2_plb(
+            pose = xyz_quat.detach().cpu().numpy(), 
+            is_cylinder = self.cfg.shape == "Cylinder",
+            cylinder_h = getattr(self, 'h') if hasattr(self, 'h') else 0
+        )
         targetXYZ = xyz_quat[:3]
         targetQuat = xyz_quat[3:]
 
-        self.position[frameIdx + 1] = np.clip(
+        self.position[frame_idx + 1] = np.clip(
             targetXYZ,
             self.xyz_limit[0].value,
             self.xyz_limit[1].value
         )
-        self.rotation[frameIdx + 1] = targetQuat
+        self.rotation[frame_idx + 1] = targetQuat
+
+        self._update_pose_in_vis_recorder(frame_idx)
 
     @ti.complex_kernel_grad(apply_robot_forward_kinemtaics)
     def forward_kinematics_gradient_backward_2_robot(self, frameIdx: ti.i32, xyz_quat: torch.Tensor):
@@ -178,6 +311,11 @@ class Primitive:
             grads[i] = self.position.grad[frameIdx + 1][i]
         for i in range(4):
             grads[3 + i] = self.rotation.grad[frameIdx + 1][i]
+        grads = plb_pose_2_z_up_rhs(
+            pose = xyz_quat.detach().cpu().numpy(), 
+            is_cylinder = self.cfg.shape == "Cylinder",
+            cylinder_h = getattr(self, 'h') if hasattr(self, 'h') else 0
+        )
         xyz_quat.backward(grads, retain_graph=True)
 
 
@@ -188,8 +326,8 @@ class Primitive:
         self.rotation[target] = self.rotation[source]
 
     def _get_fcl_tf(self, f):
-        state = np.zeros((7), dtype=np.float64)
-        self.no_grad_get_state_kernel(f, state)
+        state = self.get_state(f, False)
+        state = plb_pose_2_z_up_rhs(state)
         pos, rot = state[:3], state[3:]
         return fcl.Transform(rot, pos)
 
@@ -307,6 +445,7 @@ class Primitive:
     def default_config(cls):
         cfg = CN()
         cfg.shape = ''
+        cfg.name = '' # default name 
         cfg.init_pos = (0.3, 0.3, 0.3)  # default color
         cfg.init_rot = (1., 0., 0., 0.)  # default color
         cfg.color = (0.3, 0.3, 0.3)  # default color
@@ -319,6 +458,10 @@ class Primitive:
         action.dim = 0  # in this case it can't move ...
         action.scale = ()
         return cfg
+
+    @property
+    def unique_name(self) -> str:
+        return f"{self.cfg.shape}_{self.cfg.name if len(self.cfg.name) != 0 else abs(hash(self))}"
 
 
 class Sphere(Primitive):
@@ -346,6 +489,15 @@ class Sphere(Primitive):
         cfg.shape = 'Sphere'
         cfg.radius = 1.
         return cfg
+
+    def _init_object_in_visualizer(self):
+        AddRigidBodyPrimitiveMessage(
+            self.unique_name,
+            "bpy.ops.mesh.primitive_uv_sphere_add",
+            radius = self.radius
+        ).send()
+        self._update_pose_in_vis_recorder(0, True)
+
 
 class Capsule(Primitive):
     def __init__(self, **kwargs):
@@ -510,6 +662,29 @@ class Cylinder(Primitive):
         cfg.r = 0.1
         return cfg
 
+    def _init_object_in_visualizer(self):
+        AddRigidBodyPrimitiveMessage(
+            self.unique_name,
+            "bpy.ops.mesh.primitive_cylinder_add",
+            radius = self.r,
+            depth = self.h
+        ).send()
+        self._update_pose_in_vis_recorder(0, True)
+
+    def _get_fcl_tf(self, f):
+        state = self.get_state(f, False)
+        state = plb_pose_2_z_up_rhs(state, True, self.h)
+        pos, rot = state[:3], state[3:]
+        return fcl.Transform(rot, pos)
+    
+
+    def _update_pose_in_vis_recorder(self, frame_idx, is_init=False):
+        if is_init or self.is_recording():
+            state_idx = frame_idx + (0 if is_init else 1)
+            pose = plb_pose_2_z_up_rhs(self.get_state(state_idx, False), True, self.h)
+            UpdateRigidBodyPoseMessage(self.unique_name, pose, frame_idx * self.STEP_INTERVAL).send()
+
+
 
 class Torus(Primitive):
     def __init__(self, **kwargs):
@@ -584,3 +759,11 @@ class Box(Primitive):
         cfg.size = (0.1, 0.1, 0.1)
         return cfg
 
+    def _init_object_in_visualizer(self):
+        AddRigidBodyPrimitiveMessage(
+            self.unique_name, 
+            "bpy.ops.mesh.primitive_cube_add",
+            size = 1.0,
+            scale = self.cfg.size
+        ).send()
+        self._update_pose_in_vis_recorder(0, True)

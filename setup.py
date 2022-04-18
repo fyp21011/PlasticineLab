@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 install_requires = [
     'scipy',
@@ -18,6 +18,8 @@ install_requires = [
     'lxml',
     'networkx',
     'pytorch3d',
+    'pymcubes',
+    'python-fcl',
     'pytest'
 ]
 
@@ -25,4 +27,5 @@ setup(
     name='plb',
     version='0.0.1',
     install_requires=install_requires,
+    packages=find_packages(exclude='protocol')
 )

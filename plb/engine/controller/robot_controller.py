@@ -1,4 +1,5 @@
-from typing import List, Dict, Iterable, Union, Generator
+import os
+from typing import Any, List, Dict, Iterable, Union, Generator
 import warnings
 import yaml
 
@@ -7,49 +8,64 @@ import torch
 from yacs.config import CfgNode as CN
 
 from plb.config.utils import make_cls_config
+from plb.utils import VisRecordable
 from .controller import Controller
-from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE
-from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive
+from plb.urdfpy import DiffRobot, Robot, Collision, DEVICE, Geometry
+from plb.engine.primitive.primitive import Box, Sphere, Cylinder, Primitive, primitive_cfg_in_mem
+from protocol import MeshesMessage, AddRigidBodyPrimitiveMessage, UpdateRigidBodyPoseMessage
 
+class _RobotLinkVisualizer:
+    def __init__(self, name: str, link_geometry: Geometry, init_pose: Union[np.ndarray, torch.Tensor]) -> None:
+        self.name = name
+        self.geometry = link_geometry
+        if isinstance(init_pose, torch.Tensor):
+            self.pose = init_pose.detach().cpu().numpy()
+        else:
+            self.pose = init_pose
 
-ROBOT_LINK_DOF = 7
-ROBOT_LINK_DOF_SCALE = tuple((0.01 for _ in range(ROBOT_LINK_DOF)))
-ROBOT_COLLISION_COLOR = '(0.8, 0.8, 0.8)'
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        if self.geometry.mesh is not None:
+            with open(self.geometry.mesh.filename, 'rb') as reader:
+                filecontent = reader.read()
+            MeshesMessage(
+                self.name + '.' + os.path.splitext(self.geometry.mesh.filename)[1],
+                filecontent,
+                init_pose = self.pose
+            ).send()
+        else:
+            if self.geometry.box is not None:
+                init_msg = AddRigidBodyPrimitiveMessage(
+                    self.name, 
+                    "bpy.ops.mesh.primitive_cube_add",
+                    size = 1.0,
+                    scale = (self.geometry.box.size[0], self.geometry.box.size[1], self.geometry.box.size[2])
+                )
+            elif self.geometry.cylinder is not None:
+                init_msg = AddRigidBodyPrimitiveMessage(
+                    self.name, 
+                    "bpy.ops.mesh.primitive_cylinder_add",
+                    radius = self.geometry.cylinder.radius,
+                    depth = self.geometry.cylinder.length
+                )
+            elif self.geometry.sphere is not None:
+                init_msg = AddRigidBodyPrimitiveMessage(
+                    self.name, 
+                    "bpy.ops.mesh.primitive_uv_sphere_add",
+                    radius = self.geometry.sphere.radius
+                )
+            else:
+                raise NotImplementedError()
+            init_msg.send()
+            # then set the position
+            UpdateRigidBodyPoseMessage(self.name, self.pose, frame_idx = 0).send()
 
-def _generate_primitive_config(rawPose: torch.Tensor, offset:Iterable[float], shapeName: str, **kwargs) -> CN:
-    """ Generate a CfgNode for primitive mapping
-
-    Based on the URDF's primtives, generate the configuration for PLB's
-    primitives, to establish the mapping in between
-
-    Params
-    ------
-    rawPose: a 7-dim tensor specifying the 
-    offset: the offset of the robot to which the primitve belongs
-    shapeName: 'Sphere', 'Cylinder' or 'Box'
-    **kwargs: other primitive-type specific parameters, such as
-        the `size` description for `Box`, `r` and `h` for cylinders
+    def __repr__(self) -> str:
+        return f'{self.name} @ {self.pose}, linked to {self.geometry}'
     
-    Return
-    ------
-    A CfgNode for the PLB's primitive instantiation
-    """
-    if rawPose.shape != (7,):
-        raise ValueError(f"expecting a 7-dim Tensor as the initial position, got {rawPose}")
-    actionCN = CN(init_dict={'dim': ROBOT_LINK_DOF, 'scale': f'{ROBOT_LINK_DOF_SCALE}'})
-    configDict = {
-        'action': actionCN, 
-        'color':  ROBOT_COLLISION_COLOR, 
-        'init_pos': f'({rawPose[0] + offset[0]}, {rawPose[1] + offset[1]}, {rawPose[2] + offset[2]})',
-        'init_rot': f'({rawPose[3]}, {rawPose[4]}, {rawPose[5]}, {rawPose[6]})',
-        'shape': shapeName,
-    }
-    for key, value in kwargs.items():
-        if isinstance(value, CN): configDict[key] = value
-        else:                     configDict[key] = str(value)
-    return CN(init_dict=configDict)
+    def __str__(self) -> str:
+        return self.__repr__
 
-class RobotsController(Controller):
+class RobotsController(Controller, VisRecordable):
     """ A controller that maps robot to primitive links
     """
     def __init__(self) -> None:
@@ -100,7 +116,7 @@ class RobotsController(Controller):
         rc = RobotsController()
         for eachOutCfg in outs:
             diffRobot = DiffRobot.load(eachOutCfg.path)
-            rc.append_robot(diffRobot, eachOutCfg.offset)
+            rc.append_robot(diffRobot)
         return rc
 
     @classmethod
@@ -108,55 +124,51 @@ class RobotsController(Controller):
         cfg = CN()
         cfg.shape = 'Robot'
         cfg.path = ''
-        cfg.offset = (0.0, 0.0, 0.0)
         return cfg
 
     @classmethod
-    def _urdf_collision_to_primitive(cls, collision: Collision, offset: np.ndarray, pose: torch.Tensor) -> Union[Primitive, None]:
+    def _urdf_collision_to_primitive(cls, collision: Collision, pose: torch.Tensor, **kwargs) -> Union[Primitive, None]:
         """ Converting the URDF's collision geometry to primitive
 
         Params
         ------
         collision: the URDF robot's collision geometry
-        offset: the offset of the robot's position
         pose: the pose matrix (4 * 4) of this geometry, which
             records the initial position of the geometry
         """
         if collision.geometry.box is not None:
-            linkPrimitive = Box(cfg = _generate_primitive_config(
+            linkPrimitive = Box(cfg = primitive_cfg_in_mem(
                 rawPose   = pose, 
-                offset    = offset,
                 shapeName = 'Box',
-                size      = tuple(collision.geometry.box.size)
+                size      = tuple(collision.geometry.box.size),
+                **kwargs
             ))
         elif collision.geometry.sphere is not None:
-            linkPrimitive = Sphere(cfg = _generate_primitive_config(
+            linkPrimitive = Sphere(cfg = primitive_cfg_in_mem(
                 rawPose   = pose,
-                offset    = offset,
                 shapeName = 'Sphere',
-                radius    = collision.geometry.sphere.radius
+                radius    = collision.geometry.sphere.radius,
+                **kwargs
             ))
         elif collision.geometry.cylinder is not None:
-            linkPrimitive = Cylinder(cfg = _generate_primitive_config(
+            linkPrimitive = Cylinder(cfg = primitive_cfg_in_mem(
                 rawPose   = pose,
-                offset    = offset,
                 shapeName = 'Cylinder',
                 r         = collision.geometry.cylinder.radius,
-                h         = collision.geometry.cylinder.length
+                h         = collision.geometry.cylinder.length,
+                **kwargs
             ))
         else:
             warnings.warn(f"Not supported type: {type(collision.geometry.geometry)}")
             linkPrimitive = None
         return linkPrimitive
 
-    def append_robot(self, robot: DiffRobot, offset_: Iterable[float] = torch.zeros(3)) -> Generator[Primitive, None, None]:
+    def append_robot(self, robot: DiffRobot) -> Generator[Primitive, None, None]:
         """ Append a new URDF-loaded robot to the controller
 
         Params
         ------
         robot: the newly loaded robot
-        offset: the offset of the robot's position, which will be added
-            to each link of this robot's Cartesian primitives
 
         Returns
         -----
@@ -168,6 +180,7 @@ class RobotsController(Controller):
             for joint in robot.actuated_joints
         ))
         self.link_2_primitives.append({})
+        robot_idx = len(self.robots) - 1
         for linkName, link in robot.link_map.items():
             if len(link.collisions) > 1:
                 raise ValueError(f"{linkName} has multiple collision")
@@ -175,9 +188,17 @@ class RobotsController(Controller):
                 warnings.warn(f"{linkName} has no collision")
             else:
                 # converting
-                linkPrimitive = self._urdf_collision_to_primitive(link.collisions[0], offset_, link.init_pose)
+                linkPrimitive = self._urdf_collision_to_primitive(
+                    link.collisions[0],
+                    link.collision_pose(0, 0), 
+                    name = f'{robot.name}_{robot_idx}/{linkName}_collision'
+                )
                 if linkPrimitive is not None:
                     self.link_2_primitives[-1][linkName] = linkPrimitive
+            for vis_idx, vis in enumerate(link.visuals):
+                vis_name = f'{robot.name}_{robot_idx}/{linkName}_{vis_idx}'
+                self.register_scene_init_callback(_RobotLinkVisualizer(vis_name, vis.geometry, link.init_pose))
+
 
     @staticmethod
     def _deflatten_robot_actions(robot: Robot, robotActions: torch.Tensor) -> List:
@@ -239,13 +260,22 @@ class RobotsController(Controller):
 
     def _forward_kinematics(self, step_idx: int):
         # inherited from Controller
+        robot_idx = 0
         for robot, primitive_dict in zip(self.robots, self.link_2_primitives):
             for name, link in robot._link_map.items():
                 if name not in primitive_dict: continue
-                primitive_dict[name].apply_robot_forward_kinemtaics(
-                    step_idx, 
-                    link.trajectory[step_idx]
-                )
+                pose = link.collision_pose(0, step_idx)
+                primitive_dict[name].apply_robot_forward_kinemtaics(step_idx, pose)
+                
+                if self.is_recording():
+                    pose = link.trajectory[step_idx]
+                    for vis_idx, vis in enumerate(link.visuals):
+                        vis_name = f'{robot.name}_{robot_idx}/{name}_{vis_idx}'
+                        if vis.geometry.mesh is not None:
+                            vis_name = vis_name + '.' + os.path.splitext(vis.geometry.mesh.filename)[-1]
+                        UpdateRigidBodyPoseMessage(vis_name, pose.detach().cpu().numpy(), step_idx * self.STEP_INTERVAL).send()
+            robot_idx += 1
+                    
 
     def _forward_kinematics_grad(self, step_idx: int):
         # inherited from Controller

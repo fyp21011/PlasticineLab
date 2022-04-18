@@ -1,5 +1,6 @@
 import copy
 import os
+import warnings
 
 import numpy as np
 import open3d as o3d
@@ -284,7 +285,7 @@ class Mesh(URDFType):
 
     @property
     def meshes(self):
-        """a pen3d.geometry.TriangleMesh object : The triangular meshes
+        """an open3d.geometry.TriangleMesh object : The triangular meshes
         whose vertex normal has been computed already
         """
         return self._meshes
@@ -292,7 +293,11 @@ class Mesh(URDFType):
     @meshes.setter
     def meshes(self, value):
         if isinstance(value, six.string_types):
-            value = load_mesh(value)
+            try:
+                value = load_mesh(value)
+            except Exception as e:
+                warnings.warn(f"fail to load meshes {value} because of error {e}")
+                value = None
         elif not isinstance(value, o3d.geometry.TriangleMesh):
             raise TypeError('Mesh requires a open3d.geometry.TriangleMesh')
         self._meshes = value
@@ -313,6 +318,7 @@ class Mesh(URDFType):
                 contraction=o3d.geometry.SimplificationContraction.Average
             )
         kwargs['meshes'] = meshes
+        kwargs['filename'] = fn
 
         return Mesh(**kwargs)
 
@@ -461,7 +467,7 @@ class Geometry(URDFType):
 
     @property
     def meshes(self):
-        """a pen3d.geometry.TriangleMesh object : The triangular meshes
+        """a open3d.geometry.TriangleMesh object : The triangular meshes
         whose vertex normal has been computed already
         """
         return self.geometry.meshes

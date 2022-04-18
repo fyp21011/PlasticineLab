@@ -4,7 +4,7 @@ import warnings
 from pytorch3d import transforms
 import torch
 
-from plb.urdfpy import Robot, Joint, Link
+from plb.urdfpy import Robot, Joint, Link, Box, Cylinder, Mesh, Sphere
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE = torch.device(DEVICE)
@@ -198,9 +198,14 @@ class DiffLink:
     link: the Link to be wrapped
     pose: the initial pose of the link, which is a 4-by-4 matrix
     """
+
     def __init__(self, link: Link, pose = None) -> None:
         self._link = link
         if pose is not None: self.init_pose = pose
+        self._collision_origin = [
+            _tensor_creator(torch.tensor, collision.origin) for collision in self._link.collisions
+        ]
+
 
     @property
     def init_pose(self) -> Union[torch.Tensor, None]:
@@ -208,17 +213,31 @@ class DiffLink:
             warnings.warn(f"the link: {self._link.name}'s initial pose has not been initialized!")
             return None
         return self.trajectory[0]
+
+    
+    def collision_pose(self, collision_idx, step_idx) -> Union[torch.Tensor, None]:
+        if len(self.transforms) < step_idx or collision_idx >= len(self._link.collisions):
+            warnings.warn(f"the link: {self._link.name} has no step {step_idx}")
+            return None
+        origin = self._collision_origin[collision_idx]
+        return _matrix_2_xyz_quat(self.transforms[step_idx] @ origin)
+        
     
     @init_pose.setter
     def init_pose(self, pose: Union[torch.Tensor, Iterable]) -> None:
         if not isinstance(pose, torch.autograd.Variable):
             pose = _tensor_creator(torch.tensor, pose)
         if pose.shape == (4,4):
+            pose_mat = pose
             pose = _matrix_2_xyz_quat(pose)
+        elif pose.shape == (7, 1) or pose.shape == (7,):
+            pose = pose.reshape((7,))
+            pose_mat = _translation_2_matrix(pose[:3]) + _rotation_2_matrix(transforms.quaternion_to_matrix(pose[3:]))
         if pose.shape != (7,):
             raise ValueError(f"initial pose of a link MUST be a 4-by-4 matrix or a 7-dim vector, got {pose.shape}")
         self.trajectory: List[torch.Tensor] = [pose]
         """A list of link's 7-D, i.e., xyz+quat, position along the time"""
+        self.transforms: List[torch.Tensor] = [pose_mat]
         # self.velocities: List[torch.Tensor] = [
         #     _tensor_creator(torch.zeros_like, self.trajectory[0])
         # ]
@@ -236,13 +255,17 @@ class DiffLink:
             or a tensor of shape (7,) --- XYZ + Quat
         """
         if pose.shape == (4, 4):
+            pose_mat = pose
             pose = _matrix_2_xyz_quat(pose)
+        elif pose.shape == (7, 1) or pose.shape == (7,):
+            pose = pose.reshape((7,))
+            pose_mat = _translation_2_matrix(pose[:3]) + _rotation_2_matrix(transforms.quaternion_to_matrix(pose[3:]))
         if pose.shape[-1] != 7:
             raise ValueError(f'pose must either be of shape 4,4 or 7, but got {pose.shape}')
         self.trajectory.append(pose)
+        self.transforms.append(pose_mat)
         # self.velocities.append((self.trajectory[-1] - self.trajectory[-2]) / VELOCITY_SCALE)
         # return self.velocities[-1]
-
 
 class DiffRobot(Robot):
     """ The robot with differentiable forward kinematics

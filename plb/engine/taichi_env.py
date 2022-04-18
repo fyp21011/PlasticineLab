@@ -3,6 +3,8 @@ import cv2
 import taichi as ti
 import torch
 
+from plb.utils import VisRecordable
+from protocol.message import DeformableMeshesMessage
 from .mpm_simulator import MPMSimulator
 from .renderer import Renderer
 from .shapes import Shapes
@@ -13,7 +15,7 @@ from .nn.mlp import MLP
 ti.init(arch=ti.gpu, debug=False, fast_math=True)
 
 #TODO: merge TaichiEnv with PlasticineEnv
-class TaichiEnv:
+class TaichiEnv(VisRecordable):
     def __init__(self, cfg, nn=False, loss=True):
         """
         A taichi env builds scene according the configuration and the set of manipulators
@@ -37,6 +39,7 @@ class TaichiEnv:
         else:
             self.loss = None
         self._is_copy = True
+        self.step_cnt = 0
     
     @property
     def action_dim(self) -> int:
@@ -59,6 +62,7 @@ class TaichiEnv:
         self.simulator.reset(self.init_particles)
         if self.loss:
             self.loss.clear()
+        self.step_cnt = 0
 
     def render(self, mode='human', **kwargs):
         assert self._is_copy, "The environment must be in the copy mode for render ..."
@@ -97,6 +101,14 @@ class TaichiEnv:
         if isinstance(action, torch.Tensor):
             action = action.detach()
         self.simulator.step(is_copy=self._is_copy, action=action)
+        if self.is_recording:
+            x = self.simulator.get_x(0, False)
+            DeformableMeshesMessage.Factory(
+                "plasticine",
+                self.step_cnt * self.STEP_INTERVAL * self.simulator.substeps,
+                pcd = self.y_up_2_z_up(x)
+            ).message.send()
+        self.step_cnt += 1
 
     def compute_loss(self):
         assert self.loss is not None

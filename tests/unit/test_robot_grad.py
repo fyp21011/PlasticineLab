@@ -11,7 +11,7 @@ def test_robot_and_primitives():
     primitives = PrimitivesFacade()
     robot = DiffRobot.load("tests/data/ur5/ur5_primitive.urdf")
     rc = RobotsController()
-    rc.append_robot(robot, (0.0, 0.0, 0.0))
+    rc.append_robot(robot)
     primitives.register_robot_primitives(rc)
 
     assert len(primitives) == 8, \
